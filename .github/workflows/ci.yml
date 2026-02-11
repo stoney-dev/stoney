@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  stoney-selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: npm i -g pnpm@10
+
+      - name: Install deps
+        run: pnpm install
+
+      - name: Build runner
+        run: pnpm -C packages/runner build
+
+      - name: Start target app
+        env:
+          PORT: "4000"
+          STONEY_TARGET_TOKEN: "devtoken"
+        run: |
+          nohup pnpm -C apps/target start > target.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS "http://localhost:4000/health" > /dev/null; then
+              echo "Target app is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Target app failed to start"
+          cat target.log
+          exit 1
+
+      - name: Run Stoney contracts (selftest)
+        env:
+          STONEY_BASE_URL: "http://localhost:4000"
+          STONEY_TOKEN: "devtoken"
+          STONEY_TIMEOUT_MS: "15000"
+          STONEY_RETRIES: "1"
+        run: |
+          node packages/runner/dist/cli.js run \
+            --suite "contracts/stoney.yml" \
+            --report "stoney-report.json"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stoney-report
+          path: stoney-report.json
+
+      - name: Upload target logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: target-logs
+          path: target.log
+
+      - name: Comment PR with summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = "stoney-report.json";
+            if (!fs.existsSync(path)) {
+              core.warning("No stoney-report.json found, skipping PR comment.");
+              return;
+            }
+
+            const report = JSON.parse(fs.readFileSync(path, "utf8"));
+            const ok = report.ok === true;
+            const emoji = ok ? "✅" : "❌";
+
+            const failed = (report.results || []).filter(r => !r.ok);
+            const lines = failed.slice(0, 10).map(r =>
+              `- **${r.contract}/${r.id}** → ${r.status ?? "?"} \`${r.method}\` ${r.url}\n  - ${((r.notes||[])[0]) || "Failed"}`
+            );
+
+            const body =
+              `## ${emoji} Stoney selftest\n` +
+              `**Base URL:** \`${report.baseUrl}\`\n\n` +
+              `**Passed:** ${report.passed}/${report.total}\n` +
+              `**Failed:** ${report.failed}\n\n` +
+              (failed.length ? `### Failures (first ${Math.min(10, failed.length)})\n${lines.join("\n")}\n` : "") +
+              `\n_Artifact: \`stoney-report\`_`;
+
+            // Post a new comment (simple MVP). Later we can "upsert" by marker.
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });

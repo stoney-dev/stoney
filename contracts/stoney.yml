@@ -1,0 +1,37 @@
+version: 1
+suite: core
+contracts:
+  - name: health
+    scenarios:
+      - id: health_ok
+        http:
+          method: GET
+          path: /health
+        expect:
+          status: 200
+          json:
+            ok: true
+
+  - name: ping
+    scenarios:
+      - id: ping_ok
+        http:
+          method: GET
+          path: /v1/ping
+        expect:
+          status: 200
+          json:
+            ok: true
+
+  - name: private_ping
+    scenarios:
+      - id: private_requires_token
+        http:
+          method: GET
+          path: /private/ping
+          headers:
+            Authorization: "Bearer ${STONEY_TOKEN}"
+        expect:
+          status: 200
+          json:
+            private: true

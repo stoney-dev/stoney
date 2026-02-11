@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+      - id: v
+        run: |
+          node -e "const p=require('./packages/runner/package.json'); console.log('version='+p.version)" >> $GITHUB_OUTPUT
+
+      - name: Create tag vX.Y.Z
+        run: |
+          git config user.name "stoney-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git tag "v${{ steps.v.outputs.version }}"
+          git push origin "v${{ steps.v.outputs.version }}"
+
+      - name: Move major tag v0
+        run: |
+          git tag -f v0
+          git push origin -f v0
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.version }}
+          name: v${{ steps.v.outputs.version }}
+          generate_release_notes: true

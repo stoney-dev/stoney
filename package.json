@@ -1,0 +1,11 @@
+{
+    "name": "stoney",
+    "private": true,
+    "packageManager": "pnpm@10.29.2",
+    "scripts": {
+      "dev:target": "pnpm -C apps/target dev",
+      "dev:stoney": "pnpm -C packages/runner dev",
+      "build:runner": "pnpm -C packages/runner build"
+    }
+  }
+  
