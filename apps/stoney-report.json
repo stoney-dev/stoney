@@ -1,0 +1,42 @@
+{
+  "baseUrl": "http://localhost:4000",
+  "suites": [
+    "contracts/stoney.yml"
+  ],
+  "total": 3,
+  "failed": 0,
+  "passed": 3,
+  "ok": true,
+  "results": [
+    {
+      "suite": "core",
+      "contract": "health",
+      "id": "health_ok",
+      "ok": true,
+      "method": "GET",
+      "url": "http://localhost:4000/health",
+      "status": 200,
+      "notes": []
+    },
+    {
+      "suite": "core",
+      "contract": "ping",
+      "id": "ping_ok",
+      "ok": true,
+      "method": "GET",
+      "url": "http://localhost:4000/v1/ping",
+      "status": 200,
+      "notes": []
+    },
+    {
+      "suite": "core",
+      "contract": "private_ping",
+      "id": "private_requires_token",
+      "ok": true,
+      "method": "GET",
+      "url": "http://localhost:4000/private/ping",
+      "status": 200,
+      "notes": []
+    }
+  ]
+}

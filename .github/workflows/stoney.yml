@@ -2,8 +2,7 @@ name: Stoney
 
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,16 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Install pnpm
         run: npm i -g pnpm@10
 
       - name: Install deps
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Start target app (self-test)
         env:
@@ -44,7 +38,7 @@ jobs:
           exit 1
 
       - name: Run Stoney (local action)
-        uses: ./
+        uses: ./.github/actions/stoney
         with:
           base_url: "http://localhost:4000"
           token: "devtoken"

@@ -1,0 +1,138 @@
+name: "Stoney"
+description: "Run Stoney contracts against a base URL and report failures in CI."
+author: "stoneydev"
+branding:
+  icon: "check-circle"
+  color: "purple"
+
+inputs:
+  base_url:
+    description: "Base URL to run HTTP contracts against (e.g. https://staging.example.com)"
+    required: true
+  suite:
+    description: "Glob or file path for suite files (e.g. contracts/*.yml)"
+    required: false
+    default: "contracts/*.yml"
+  token:
+    description: "Optional bearer token used by contracts via ${STONEY_TOKEN}"
+    required: false
+  timeout_ms:
+    description: "Request timeout in ms"
+    required: false
+    default: "15000"
+  retries:
+    description: "Retry count for HTTP requests"
+    required: false
+    default: "2"
+  report:
+    description: "Report file path"
+    required: false
+    default: "stoney-report.json"
+  upload_artifact:
+    description: "Whether to upload the report as an artifact (true/false)"
+    required: false
+    default: "true"
+  artifact_name:
+    description: "Artifact name"
+    required: false
+    default: "stoney-report"
+  comment_pr:
+    description: "Post a PR comment summary (true/false). Only works on pull_request events."
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install pnpm
+      shell: bash
+      run: npm i -g pnpm@10
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --no-frozen-lockfile
+
+    - name: Build runner
+      shell: bash
+      run: pnpm -C packages/runner build
+
+    - name: Run Stoney
+      shell: bash
+      env:
+        STONEY_BASE_URL: ${{ inputs.base_url }}
+        STONEY_TOKEN: ${{ inputs.token }}
+        STONEY_TIMEOUT_MS: ${{ inputs.timeout_ms }}
+        STONEY_RETRIES: ${{ inputs.retries }}
+      run: |
+        node packages/runner/dist/cli.js run \
+          --suite "${{ inputs.suite }}" \
+          --report "${{ inputs.report }}"
+
+    - name: Upload report artifact
+      if: ${{ inputs.upload_artifact == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: ${{ inputs.report }}
+
+    - name: PR comment summary
+      if: ${{ inputs.comment_pr == 'true' && github.event_name == 'pull_request' }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+
+          const reportPath = `${{ inputs.report }}`;
+          if (!fs.existsSync(reportPath)) {
+            core.warning(`Report not found at ${reportPath}`);
+            return;
+          }
+
+          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+          const total = report.total ?? 0;
+          const failed = report.failed ?? 0;
+          const passed = report.passed ?? (total - failed);
+          const baseUrl = report.baseUrl ?? '';
+          const ok = !!report.ok;
+
+          const bad = (report.results || []).filter(r => !r.ok).slice(0, 10);
+          const lines = [];
+          lines.push(`### 🪨 Stoney report`);
+          lines.push(`**Base URL:** \`${baseUrl}\``);
+          lines.push(`**Result:** ${ok ? '✅ PASS' : '❌ FAIL'} — **${passed}/${total}** passed`);
+
+          if (bad.length) {
+            lines.push(`\n**Failures (first ${bad.length}):**`);
+            for (const r of bad) {
+              lines.push(`- ❌ \`${r.contract} :: ${r.id}\` — **${r.status ?? '?'}** — \`${r.method} ${r.url}\``);
+              if (Array.isArray(r.notes) && r.notes.length) {
+                for (const n of r.notes.slice(0, 2)) lines.push(`  - ${n}`);
+              }
+            }
+            lines.push(`\n(See artifact \`${{ inputs.artifact_name }}\` for full JSON report.)`);
+          }
+
+          const body = lines.join('\n');
+
+          const pr = context.payload.pull_request;
+          const owner = context.repo.owner;
+          const repo = context.repo.repo;
+          const issue_number = pr.number;
+
+          // Upsert a single comment (don’t spam)
+          const marker = '<!-- stoney-report -->';
+          const finalBody = `${marker}\n${body}`;
+
+          const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+          const existing = comments.find(c => (c.body || '').includes(marker));
+
+          if (existing) {
+            await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: finalBody });
+          } else {
+            await github.rest.issues.createComment({ owner, repo, issue_number, body: finalBody });
+          }
