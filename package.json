@@ -5,7 +5,8 @@
     "scripts": {
       "dev:target": "pnpm -C apps/target dev",
       "dev:stoney": "pnpm -C packages/runner dev",
-      "build:runner": "pnpm -C packages/runner build"
+      "build:runner": "pnpm -C packages/runner build",
+      "stoney:run": "node packages/runner/dist/cli.js run --suite contracts/stoney.yml --report local-report.json"
     }
   }
   
