@@ -2,14 +2,18 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: ["src/cli.ts"],
-  format: ["esm"],
-  target: "es2022",
+  outDir: "dist",
+
+  format: ["cjs"],
   platform: "node",
+  target: "node18",
+
   splitting: false,
-  sourcemap: false,
   clean: true,
   minify: true,
+  sourcemap: false,
 
-  // ✅ Force tsup to bundle deps so dist does NOT need node_modules at runtime.
-  noExternal: ["js-yaml", "fast-glob", "commander"],
+  outExtension() {
+    return { js: ".cjs" };
+  },
 });

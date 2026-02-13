@@ -37,7 +37,7 @@ inputs:
     required: false
     default: "stoney-report"
   comment_pr:
-    description: "Post a PR comment summary (true/false). Only works on pull_request events."
+    description: "Post a PR comment summary (true). Only works on pull_request events."
     required: false
     default: "true"
 
@@ -49,7 +49,7 @@ runs:
       with:
         node-version: 22
 
-    - name: Run Stoney
+    - name: Run Stoney (bundled)
       shell: bash
       env:
         STONEY_BASE_URL: ${{ inputs.base_url }}
@@ -57,7 +57,7 @@ runs:
         STONEY_TIMEOUT_MS: ${{ inputs.timeout_ms }}
         STONEY_RETRIES: ${{ inputs.retries }}
       run: |
-        node "${{ github.action_path }}/packages/runner/dist/cli.js" run \
+        node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
           --suite "${{ inputs.suite }}" \
           --report "${{ inputs.report }}"
 
