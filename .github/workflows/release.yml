@@ -19,7 +19,7 @@ jobs:
         id: v
         shell: bash
         run: |
-          node -e "const p=require('./packages/runner/package.json'); console.log('version='+p.version)" >> "$GITHUB_OUTPUT"
+          node -e "const p=require('./packages/runner/package.json'); process.stdout.write('version='+p.version)" >> "$GITHUB_OUTPUT"
 
       - name: Create tag vX.Y.Z
         shell: bash

@@ -2,7 +2,6 @@ name: Stoney
 
 on:
   pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,42 +13,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        run: npm i -g pnpm@10
-
-      - name: Install deps
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Start target app (self-test)
-        env:
-          PORT: "4000"
-          STONEY_TARGET_TOKEN: "devtoken"
-        run: |
-          nohup pnpm -C apps/target dev > target.log 2>&1 &
-          for i in {1..30}; do
-            if curl -fsS "http://localhost:4000/health" > /dev/null; then
-              echo "Target app is up"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Target app failed to start"
-          cat target.log
-          exit 1
-
-      - name: Run Stoney (local action)
-        uses: ./.github/actions/stoney
+      - name: Run Stoney
+        uses: stoney-dev/stoney@v0
         with:
-          base_url: "http://localhost:4000"
-          token: "devtoken"
-          suite: "contracts/stoney.yml"
-          retries: "1"
+          base_url: ${{ secrets.STONEY_BASE_URL }}
+          token: ${{ secrets.STONEY_TOKEN }}
+          suite: contracts/*.yml
+          retries: "2"
           timeout_ms: "15000"
           comment_pr: "true"
-
-      - name: Upload target logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: target-logs
-          path: target.log
