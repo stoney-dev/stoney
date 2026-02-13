@@ -1,6 +1,6 @@
 name: "Stoney"
 description: "Run Stoney contracts against a base URL and report failures in CI."
-author: "stoneydev"
+author: "stoney-dev"
 branding:
   icon: "check-circle"
   color: "purple"
