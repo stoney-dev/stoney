@@ -10,8 +10,7 @@ export default defineConfig({
   splitting: false,
   minify: true,
 
-  // IMPORTANT: bundle all deps into the dist output
-  // so the GitHub Action does not need node_modules.
-  external: [],
+  // Critical: do NOT externalize runtime deps like js-yaml.
+  // This forces all deps to be bundled into dist/cli.js.
   noExternal: [/.*/],
 });
