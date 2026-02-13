@@ -1,6 +1,6 @@
 name: "Stoney"
 description: "Run Stoney contracts against a base URL and report failures in CI."
-author: "stoney-dev"
+author: "stoneydev"
 branding:
   icon: "check-circle"
   color: "purple"
@@ -53,12 +53,15 @@ runs:
       shell: bash
       run: npm i -g pnpm@10
 
-    - name: Install dependencies
+    # IMPORTANT: install deps in the ACTION repo, not the caller repo
+    - name: Install dependencies (action repo)
       shell: bash
+      working-directory: ${{ github.action_path }}
       run: pnpm install --no-frozen-lockfile
 
-    - name: Build runner
+    - name: Build runner (action repo)
       shell: bash
+      working-directory: ${{ github.action_path }}
       run: pnpm -C packages/runner build
 
     - name: Run Stoney
@@ -69,7 +72,7 @@ runs:
         STONEY_TIMEOUT_MS: ${{ inputs.timeout_ms }}
         STONEY_RETRIES: ${{ inputs.retries }}
       run: |
-        node packages/runner/dist/cli.js run \
+        node "${{ github.action_path }}/packages/runner/dist/cli.js" run \
           --suite "${{ inputs.suite }}" \
           --report "${{ inputs.report }}"
 
