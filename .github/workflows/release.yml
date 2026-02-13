@@ -34,7 +34,7 @@ jobs:
         run: npm i -g pnpm@10
 
       - name: Install deps
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Bump version (runner)
         run: |
@@ -50,12 +50,12 @@ jobs:
         run: |
           node -e "const p=require('./packages/runner/package.json'); console.log('version='+p.version)" >> "$GITHUB_OUTPUT"
 
-      - name: Commit version bump + dist
+      - name: Commit version bump + dist + action.yml
         shell: bash
         run: |
           git config user.name "stoney-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add packages/runner/package.json packages/runner/dist action.yml
+          git add packages/runner/package.json packages/runner/dist action.yml packages/runner/tsup.config.ts
           git commit -m "chore(release): v${{ steps.v.outputs.version }}"
 
       - name: Create and push tags

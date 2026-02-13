@@ -37,7 +37,7 @@ inputs:
     required: false
     default: "stoney-report"
   comment_pr:
-    description: "Post a PR comment summary (true). Only works on pull_request events."
+    description: "Post a PR comment summary (true/false). Only works on pull_request events."
     required: false
     default: "true"
 
@@ -48,16 +48,6 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: 22
-
-    - name: Install pnpm
-      shell: bash
-      run: npm i -g pnpm@10
-
-    # Install deps INSIDE the action repo (this is the key fix)
-    - name: Install action dependencies (prod only)
-      shell: bash
-      working-directory: ${{ github.action_path }}
-      run: pnpm install --frozen-lockfile --prod
 
     - name: Run Stoney
       shell: bash

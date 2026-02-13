@@ -1,4 +1,3 @@
-// packages/runner/tsup.config.ts
 import { defineConfig } from "tsup";
 
 export default defineConfig({
@@ -6,11 +5,11 @@ export default defineConfig({
   format: ["esm"],
   target: "es2022",
   platform: "node",
-  outDir: "dist",
-  clean: true,
   splitting: false,
+  sourcemap: false,
+  clean: true,
   minify: true,
 
-  // Force bundling ALL deps into dist (no runtime node_modules)
-  noExternal: [/.*/],
+  // ✅ Force tsup to bundle deps so dist does NOT need node_modules at runtime.
+  noExternal: ["js-yaml", "fast-glob", "commander"],
 });
