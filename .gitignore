@@ -34,3 +34,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ---- Stoney action packaging ----
+# We DO commit the bundled runner output (needed for GitHub Marketplace reliability)
+!packages/runner/dist/
+!packages/runner/dist/**

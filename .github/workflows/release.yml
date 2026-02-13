@@ -33,11 +33,16 @@ jobs:
       - name: Install pnpm
         run: npm i -g pnpm@10
 
-      # This updates packages/runner/package.json AND creates a git commit + tag locally
+      - name: Install deps
+        run: pnpm install --no-frozen-lockfile
+
       - name: Bump version (runner)
         run: |
           cd packages/runner
           npm version ${{ inputs.bump }} --no-git-tag-version
+
+      - name: Build bundled runner
+        run: pnpm -C packages/runner build
 
       - name: Read bumped version
         id: v
@@ -45,12 +50,12 @@ jobs:
         run: |
           node -e "const p=require('./packages/runner/package.json'); console.log('version='+p.version)" >> "$GITHUB_OUTPUT"
 
-      - name: Commit version bump
+      - name: Commit version bump + dist
         shell: bash
         run: |
           git config user.name "stoney-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add packages/runner/package.json
+          git add packages/runner/package.json packages/runner/dist action.yml
           git commit -m "chore(release): v${{ steps.v.outputs.version }}"
 
       - name: Create and push tags

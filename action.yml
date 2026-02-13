@@ -49,21 +49,6 @@ runs:
       with:
         node-version: 22
 
-    - name: Install pnpm
-      shell: bash
-      run: npm i -g pnpm@10
-
-    # IMPORTANT: install deps in the ACTION repo, not the caller repo
-    - name: Install dependencies (action repo)
-      shell: bash
-      working-directory: ${{ github.action_path }}
-      run: pnpm install --no-frozen-lockfile
-
-    - name: Build runner (action repo)
-      shell: bash
-      working-directory: ${{ github.action_path }}
-      run: pnpm -C packages/runner build
-
     - name: Run Stoney
       shell: bash
       env:
