@@ -1,6 +1,6 @@
 # Using Stoney in your repo
 
-## 1) Add contracts
+## 1) Add /contracts to root
 Create `contracts/stoney.yml`:
 
 ```yml
