@@ -1,3 +1,4 @@
+// packages/runner/tsup.config.ts
 import { defineConfig } from "tsup";
 
 export default defineConfig({
@@ -9,5 +10,7 @@ export default defineConfig({
   clean: true,
   splitting: false,
   minify: true,
+
+  // Force bundling ALL deps into dist (no runtime node_modules)
   noExternal: [/.*/],
 });
