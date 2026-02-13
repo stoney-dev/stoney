@@ -1,8 +1,12 @@
 // packages/runner/src/contract.ts
 import fs from "node:fs";
 import path from "node:path";
-import yaml from "js-yaml";
+import { createRequire } from "node:module";
 import { interpolate } from "./env.js";
+
+const require = createRequire(import.meta.url);
+// IMPORTANT: require() js-yaml so esbuild/tsup can bundle it into output reliably
+const yaml = require("js-yaml") as typeof import("js-yaml");
 
 export type HttpStep = {
   method: string;

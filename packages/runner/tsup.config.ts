@@ -9,8 +9,5 @@ export default defineConfig({
   clean: true,
   splitting: false,
   minify: true,
-
-  // Critical: do NOT externalize runtime deps like js-yaml.
-  // This forces all deps to be bundled into dist/cli.js.
   noExternal: [/.*/],
 });
