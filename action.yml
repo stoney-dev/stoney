@@ -49,7 +49,7 @@ runs:
       with:
         node-version: 22
 
-    - name: Run Stoney (bundled)
+    - name: Run Stoney
       shell: bash
       env:
         STONEY_BASE_URL: ${{ inputs.base_url }}

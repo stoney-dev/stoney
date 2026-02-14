@@ -1,24 +1,27 @@
-# dependencies
-node_modules
-.pnpm-store
-
-# misc
+# macOS
 .DS_Store
-*.pem
+
+# dependencies (ignore at any depth)
+node_modules/
+**/node_modules/
+
+# pnpm
+.pnpm-store/
+**/.pnpm-store/
+.pnpm-debug.log*
 
 # logs
 npm-debug.log*
 yarn-debug.log*
-pnpm-debug.log*
+yarn-error.log*
 
 # env
 .env
 .env.*.local
 
-# build outputs (repo-level)
-build
-dist
+# build outputs (keep your committed runner dist, so DO NOT ignore it)
+# dist/  <-- intentionally NOT ignored because you commit packages/runner/dist
 
-# ✅ BUT KEEP the action runner dist in repo (required for Marketplace actions)
-!packages/runner/dist/
-!packages/runner/dist/**
+# misc
+*.pem
+*.tsbuildinfo
