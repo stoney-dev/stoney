@@ -9,6 +9,9 @@ export default defineConfig({
   target: "node18",
 
   splitting: false,
+  bundle: true,
+  treeshake: true,
+
   clean: true,
   minify: true,
   sourcemap: false,
