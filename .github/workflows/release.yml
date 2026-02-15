@@ -36,7 +36,17 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
+      - name: Safety check (node_modules must not be tracked)
+        shell: bash
+        run: |
+          if git ls-files | grep -q node_modules; then
+            echo "ERROR: node_modules is tracked in git. Remove it before releasing."
+            git ls-files | grep node_modules | head -n 50
+            exit 1
+          fi
+
       - name: Bump version (runner)
+        shell: bash
         run: |
           cd packages/runner
           npm version ${{ inputs.bump }} --no-git-tag-version
@@ -44,27 +54,33 @@ jobs:
       - name: Build bundled runner
         run: pnpm -C packages/runner build
 
+      - name: Verify dist exists
+        shell: bash
+        run: |
+          test -f packages/runner/dist/cli.cjs || (echo "dist/cli.cjs missing" && exit 1)
+
       - name: Read bumped version
         id: v
         shell: bash
         run: |
-          node -e "const p=require('./packages/runner/package.json'); console.log('version='+p.version)" >> "$GITHUB_OUTPUT"
+          node -e "import('./packages/runner/package.json', { assert: { type: 'json' } }).then(m => console.log('version='+m.default.version))" >> "$GITHUB_OUTPUT"
 
       - name: Commit version bump + dist + action.yml
         shell: bash
         run: |
           git config user.name "stoney-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add packages/runner/package.json packages/runner/dist action.yml packages/runner/tsup.config.ts
-          git commit -m "chore(release): v${{ steps.v.outputs.version }}"
+          git add packages/runner/package.json packages/runner/dist action.yml packages/runner/tsup.config.ts pnpm-lock.yaml
+          git commit -m "chore(release): v${{ steps.v.outputs.version }}" || (echo "Nothing to commit" && exit 1)
 
-      - name: Create and push tags
+      - name: Tag and push
         shell: bash
         run: |
-          git tag "v${{ steps.v.outputs.version }}"
+          VERSION="v${{ steps.v.outputs.version }}"
+          git tag "$VERSION"
           git tag -f v0
           git push origin main
-          git push origin "v${{ steps.v.outputs.version }}"
+          git push origin "$VERSION"
           git push origin -f v0
 
       - name: Create GitHub Release

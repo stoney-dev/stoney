@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
 import fg from "fast-glob";
@@ -6,16 +5,41 @@ import { Command } from "commander";
 import { loadSuite } from "./contract.js";
 import { runScenarioHttp } from "./http.js";
 
+function readVersion(): string {
+  // Resolve package.json relative to this file (works in bundled output too)
+  try {
+    // __dirname exists in CJS bundles. In ESM dev (tsx), use import.meta.url fallback.
+    // tsup will bundle this nicely either way.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyGlobal = globalThis as any;
+    const here =
+      typeof __dirname !== "undefined"
+        ? __dirname
+        : path.dirname(new URL(import.meta.url).pathname);
+
+    const pkgPath = path.resolve(here, "..", "package.json");
+    const raw = fs.readFileSync(pkgPath, "utf8");
+    const pkg = JSON.parse(raw);
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
 const program = new Command();
 
-program.name("stoney").description("Stoney — run HTTP contracts in CI.").version("0.0.1");
+program
+  .name("stoney")
+  .description("Stoney — run HTTP contracts in CI.")
+  .version(readVersion());
+
 program.command("hello").action(() => console.log("🪨 Stoney is alive."));
 
 program
   .command("parse")
   .argument("<file>", "Suite file (.yml/.yaml or .json)")
   .option("--pretty", "Pretty-print JSON")
-  .action((file: string, opts: any) => {
+  .action((file: string, opts: { pretty?: boolean }) => {
     const suite = loadSuite(file);
     console.log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
   });
