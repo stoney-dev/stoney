@@ -1,14 +1,6 @@
 import { deepSubsetMatch } from "./match.js";
-import type { Scenario } from "./contract.js";
-
-export type ScenarioResult = {
-  id: string;
-  ok: boolean;
-  method: string;
-  url: string;
-  status?: number;
-  notes: string[];
-};
+import type { HttpStep, Expectation } from "./contract.js";
+import type { StepResult } from "./types.js";
 
 function joinUrl(baseUrl: string, path: string): string {
   const base = baseUrl.replace(/\/+$/, "");
@@ -33,23 +25,22 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
   }
 }
 
-export async function runScenarioHttp(baseUrl: string, s: Scenario): Promise<ScenarioResult> {
-  const method = s.http.method.toUpperCase();
-  const url = withQuery(joinUrl(baseUrl, s.http.path), s.http.query);
+export async function runHttpStep(baseUrl: string, step: HttpStep, expect?: Expectation): Promise<StepResult> {
+  const method = step.method.toUpperCase();
+  const url = withQuery(joinUrl(baseUrl, step.path), step.query);
   const notes: string[] = [];
 
-  const headers: Record<string, string> = { ...(s.http.headers || {}) };
+  const headers: Record<string, string> = { ...(step.headers || {}) };
 
   let body: string | undefined;
-  if (s.http.body !== undefined && s.http.body !== null) {
-    if (typeof s.http.body === "string") body = s.http.body;
+  if (step.body !== undefined && step.body !== null) {
+    if (typeof step.body === "string") body = step.body;
     else {
-      body = JSON.stringify(s.http.body);
+      body = JSON.stringify(step.body);
       if (!headers["content-type"]) headers["content-type"] = "application/json";
     }
   }
 
-  // Defaults that work well for staging URLs
   const timeoutMs = Number(process.env.STONEY_TIMEOUT_MS || 15000);
   const retries = Number(process.env.STONEY_RETRIES || 2);
 
@@ -71,8 +62,8 @@ export async function runScenarioHttp(baseUrl: string, s: Scenario): Promise<Sce
         }
       }
 
-      const exp = s.expect || {};
       let ok = true;
+      const exp = expect || {};
 
       if (typeof exp.status === "number" && status !== exp.status) {
         ok = false;
@@ -94,7 +85,15 @@ export async function runScenarioHttp(baseUrl: string, s: Scenario): Promise<Sce
         }
       }
 
-      return { id: s.id, ok, method, url, status, notes };
+      return {
+        ok,
+        kind: "http",
+        title: `http ${method} ${step.path}`,
+        status,
+        method,
+        url,
+        notes,
+      };
     } catch (e: any) {
       lastErr = e;
       if (attempt < retries) {
@@ -106,8 +105,9 @@ export async function runScenarioHttp(baseUrl: string, s: Scenario): Promise<Sce
   }
 
   return {
-    id: s.id,
     ok: false,
+    kind: "http",
+    title: `http ${method} ${step.path}`,
     method,
     url,
     notes: [`Network/timeout error: ${lastErr?.message || String(lastErr)}`],

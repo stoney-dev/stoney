@@ -1,4 +1,3 @@
-// packages/runner/src/contract.ts
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
@@ -12,15 +11,50 @@ export type HttpStep = {
   body?: unknown;
 };
 
+export type ExecStep = {
+  run: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  timeout_ms?: number;
+  retries?: number;
+};
+
+export type SqlStep = {
+  driver: "postgres";
+  url_env: string; // env var holding connection string, e.g. DATABASE_URL
+  query: string;
+  timeout_ms?: number;
+};
+
 export type Expectation = {
+  // http
   status?: number;
   json?: unknown;
   bodyContains?: string;
+
+  // exec
+  exit_code?: number;
+  stdout_contains?: string;
+  stderr_contains?: string;
+
+  // sql
+  rows?: number;
+  equals?: Record<string, unknown>;
 };
+
+export type Step =
+  | { http: HttpStep; expect?: Expectation }
+  | { exec: ExecStep; expect?: Expectation }
+  | { sql: SqlStep; expect?: Expectation };
 
 export type Scenario = {
   id: string;
-  http: HttpStep;
+  steps?: Step[];
+
+  // legacy support:
+  http?: HttpStep;
+  exec?: ExecStep;
+  sql?: SqlStep;
   expect?: Expectation;
 };
 
@@ -50,6 +84,84 @@ function parseFile(abs: string): unknown {
   fail(`Unsupported file type: ${abs}`);
 }
 
+function parseHttp(rawHttp: any, id: string): HttpStep {
+  if (!isObj(rawHttp)) fail(`Scenario ${id}: http must be object.`);
+  const method = String(rawHttp.method || "").toUpperCase();
+  const pth = String(rawHttp.path || "");
+  if (!method) fail(`Scenario ${id}: http.method is required.`);
+  if (!pth.startsWith("/")) fail(`Scenario ${id}: http.path must start with "/".`);
+
+  return {
+    method,
+    path: String(interpolate(pth)),
+    headers: isObj(rawHttp.headers) ? (interpolate(rawHttp.headers) as any) : undefined,
+    query: isObj(rawHttp.query) ? (interpolate(rawHttp.query) as any) : undefined,
+    body: interpolate(rawHttp.body),
+  };
+}
+
+function parseExec(rawExec: any, id: string): ExecStep {
+  if (!isObj(rawExec)) fail(`Scenario ${id}: exec must be object.`);
+  const run = String(rawExec.run || "").trim();
+  if (!run) fail(`Scenario ${id}: exec.run is required.`);
+
+  return {
+    run: String(interpolate(run)),
+    cwd: typeof rawExec.cwd === "string" ? String(interpolate(rawExec.cwd)) : undefined,
+    env: isObj(rawExec.env) ? (interpolate(rawExec.env) as any) : undefined,
+    timeout_ms: typeof rawExec.timeout_ms === "number" ? rawExec.timeout_ms : undefined,
+    retries: typeof rawExec.retries === "number" ? rawExec.retries : undefined,
+  };
+}
+
+function parseSql(rawSql: any, id: string): SqlStep {
+  if (!isObj(rawSql)) fail(`Scenario ${id}: sql must be object.`);
+  const driver = String(rawSql.driver || "");
+  if (driver !== "postgres") fail(`Scenario ${id}: sql.driver must be "postgres".`);
+  const url_env = String(rawSql.url_env || "").trim();
+  const query = String(rawSql.query || "").trim();
+  if (!url_env) fail(`Scenario ${id}: sql.url_env is required.`);
+  if (!query) fail(`Scenario ${id}: sql.query is required.`);
+
+  return {
+    driver: "postgres",
+    url_env: String(interpolate(url_env)),
+    query: String(interpolate(query)),
+    timeout_ms: typeof rawSql.timeout_ms === "number" ? rawSql.timeout_ms : undefined,
+  };
+}
+
+function normalizeScenario(raw: any): Scenario {
+  if (!isObj(raw)) fail(`Scenario must be an object.`);
+  const id = String(raw.id || "").trim();
+  if (!id) fail(`Scenario id required.`);
+
+  const expect = isObj(raw.expect) ? (interpolate(raw.expect) as any) : undefined;
+
+  // steps mode
+  if (Array.isArray(raw.steps)) {
+    const steps: Step[] = raw.steps.map((st: any, i: number) => {
+      if (!isObj(st)) fail(`Scenario ${id}: steps[${i}] must be object.`);
+      const exp = isObj(st.expect) ? (interpolate(st.expect) as any) : undefined;
+
+      if (isObj(st.http)) return { http: parseHttp(st.http, id), expect: exp };
+      if (isObj(st.exec)) return { exec: parseExec(st.exec, id), expect: exp };
+      if (isObj(st.sql)) return { sql: parseSql(st.sql, id), expect: exp };
+
+      fail(`Scenario ${id}: steps[${i}] must include one of {http|exec|sql}.`);
+    });
+
+    return { id, steps };
+  }
+
+  // legacy mode (single step)
+  if (isObj(raw.http)) return { id, steps: [{ http: parseHttp(raw.http, id), expect }] };
+  if (isObj(raw.exec)) return { id, steps: [{ exec: parseExec(raw.exec, id), expect }] };
+  if (isObj(raw.sql)) return { id, steps: [{ sql: parseSql(raw.sql, id), expect }] };
+
+  fail(`Scenario ${id}: must contain steps[] or one of {http|exec|sql}.`);
+}
+
 export function loadSuite(filePath: string): SuiteFileV1 {
   const abs = path.resolve(process.cwd(), filePath);
   if (!fs.existsSync(abs)) fail(`Suite file not found: ${abs}`);
@@ -68,37 +180,7 @@ export function loadSuite(filePath: string): SuiteFileV1 {
     if (!Array.isArray(c.scenarios) || c.scenarios.length === 0)
       fail(`contracts[${ci}].scenarios must be non-empty array.`);
 
-    const scenarios: Scenario[] = c.scenarios.map((s: any, si: number) => {
-      if (!isObj(s)) fail(`contracts[${ci}].scenarios[${si}] must be an object.`);
-      if (typeof s.id !== "string" || !s.id.trim()) fail(`scenario id required.`);
-      if (!isObj(s.http)) fail(`Scenario ${s.id}: http must be object.`);
-
-      const method = String(s.http.method || "").toUpperCase();
-      const pth = String(s.http.path || "");
-      if (!method) fail(`Scenario ${s.id}: http.method is required.`);
-      if (!pth.startsWith("/")) fail(`Scenario ${s.id}: http.path must start with "/".`);
-
-      const http: HttpStep = {
-        method,
-        path: String(interpolate(pth)),
-        headers: isObj(s.http.headers) ? (interpolate(s.http.headers) as any) : undefined,
-        query: isObj(s.http.query) ? (interpolate(s.http.query) as any) : undefined,
-        body: interpolate(s.http.body),
-      };
-
-      const expect: Expectation | undefined = isObj(s.expect)
-        ? {
-            status: typeof s.expect.status === "number" ? s.expect.status : undefined,
-            json: "json" in s.expect ? interpolate(s.expect.json) : undefined,
-            bodyContains:
-              typeof s.expect.bodyContains === "string"
-                ? String(interpolate(s.expect.bodyContains))
-                : undefined,
-          }
-        : undefined;
-
-      return { id: s.id, http, expect };
-    });
+    const scenarios: Scenario[] = c.scenarios.map((s: any) => normalizeScenario(s));
 
     const seen = new Set<string>();
     for (const s of scenarios) {

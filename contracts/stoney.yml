@@ -1,37 +1,90 @@
+# contracts/stoney.yml
 version: 1
 suite: core
+
 contracts:
   - name: health
     scenarios:
       - id: health_ok
-        http:
-          method: GET
-          path: /health
-        expect:
-          status: 200
-          json:
-            ok: true
+        steps:
+          - http:
+              method: GET
+              path: /health
+            expect:
+              status: 200
+              json:
+                ok: true
 
   - name: ping
     scenarios:
       - id: ping_ok
-        http:
-          method: GET
-          path: /v1/ping
-        expect:
-          status: 200
-          json:
-            ok: true
+        steps:
+          - http:
+              method: GET
+              path: /v1/ping
+            expect:
+              status: 200
+              json:
+                ok: true
 
   - name: private_ping
     scenarios:
       - id: private_requires_token
-        http:
-          method: GET
-          path: /private/ping
-          headers:
-            Authorization: "Bearer ${STONEY_TOKEN}"
-        expect:
-          status: 200
-          json:
-            private: true
+        steps:
+          - http:
+              method: GET
+              path: /private/ping
+              headers:
+                Authorization: "Bearer ${STONEY_TOKEN}"
+            expect:
+              status: 200
+              json:
+                private: true
+
+  # ✅ DB invariants (Postgres)
+  - name: db_invariants
+    scenarios:
+      - id: users_table_exists
+        steps:
+          - sql:
+              driver: postgres
+              url_env: STONEY_DB_URL
+              query: |
+                SELECT to_regclass('public.users') AS table_name;
+            expect:
+              rows: 1
+              equals:
+                table_name: users
+
+      - id: no_failed_jobs
+        steps:
+          - sql:
+              driver: postgres
+              url_env: STONEY_DB_URL
+              query: |
+                SELECT COUNT(*)::int AS failed
+                FROM jobs
+                WHERE status = 'failed';
+            expect:
+              rows: 1
+              equals:
+                failed: 0
+
+  # ✅ Exec step example (useful for custom behavior / scripts)
+  - name: exec_checks
+    scenarios:
+      - id: runs_smoke_script
+        steps:
+          - exec:
+              run: "node -v"
+            expect:
+              exit_code: 0
+              stdout_contains: "v"
+
+      - id: custom_command_example
+        steps:
+          - exec:
+              run: "echo STONEY_OK"
+            expect:
+              exit_code: 0
+              stdout_contains: "STONEY_OK"

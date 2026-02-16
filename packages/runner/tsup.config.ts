@@ -13,7 +13,7 @@ export default defineConfig({
   minify: true,
   sourcemap: false,
 
-  noExternal: ["commander", "fast-glob", "js-yaml"],
+  noExternal: ["commander", "fast-glob", "js-yaml", "pg"],
 
   outExtension() {
     return { js: ".cjs" };

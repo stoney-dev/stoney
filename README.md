@@ -1,23 +1,52 @@
 # Stoney 🪨
 
-Stoney runs **HTTP contracts** (YAML) against a **base URL** in GitHub Actions and produces a JSON report.
+**Simple contract testing for real environments.**
 
-## Quickstart (in your repo)
+Stoney runs small, powerful checks against your:
 
-TBD
+- 🌐 APIs (HTTP)
+- 🗄️ Database (Postgres SQL)
+- ⚙️ Custom behavior (run any command)
 
-### 1) Add a suite file
-Create: `contracts/stoney.yml`
+And it runs entirely inside **GitHub Actions**.
 
-```yml
-version: 1
-suite: core
-contracts:
-  - name: health
-    scenarios:
-      - id: health_ok
-        http:
-          method: GET
-          path: /health
-        expect:
-          status: 200
+No servers.
+No hosting.
+No infrastructure.
+
+Just YAML + CI.
+
+---
+
+# What is Stoney?
+
+Imagine you could write down:
+
+> "When I call `/health`, it should return 200."
+>
+> "There should be zero failed jobs in the database."
+>
+> "My smoke script should exit successfully."
+
+Stoney turns those expectations into executable checks.
+
+If something breaks, your PR fails.
+
+---
+
+# Why teams like Stoney
+
+- ✅ Protect staging & production
+- ✅ Keep acceptance criteria executable
+- ✅ Validate database invariants
+- ✅ No separate test server required
+- ✅ Works inside GitHub CI
+
+---
+
+# 5 Minute Setup
+
+## 1) Add a suite file
+
+Create:
+

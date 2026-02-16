@@ -7,39 +7,82 @@ branding:
 
 inputs:
   base_url:
-    description: "Base URL to run HTTP contracts against (e.g. https://staging.example.com)"
-    required: true
+    description: "Base URL to run HTTP contracts against"
+    required: false
+
   suite:
     description: "Glob or file path for suite files (e.g. contracts/*.yml)"
     required: false
     default: "contracts/*.yml"
+
+  jira_issue:
+    description: "Optional Jira issue key (or comma-separated keys) containing a ```stoney fenced suite"
+    required: false
+
   token:
     description: "Optional bearer token used by contracts via ${STONEY_TOKEN}"
     required: false
+
   timeout_ms:
     description: "Request timeout in ms"
     required: false
     default: "15000"
+
   retries:
     description: "Retry count for HTTP requests"
     required: false
     default: "2"
+
   report:
     description: "Report file path"
     required: false
     default: "stoney-report.json"
+
   upload_artifact:
     description: "Whether to upload the report as an artifact (true/false)"
     required: false
     default: "true"
+
   artifact_name:
     description: "Artifact name"
     required: false
     default: "stoney-report"
+
   comment_pr:
-    description: "Post a PR comment summary (true). Only works on pull_request events."
+    description: "Post a PR comment summary"
     required: false
     default: "true"
+
+  # Jira integration (both pulling suites + creating issues)
+  jira_base_url:
+    description: "Jira base URL (e.g. https://yourcompany.atlassian.net)"
+    required: false
+  jira_email:
+    description: "Jira email"
+    required: false
+  jira_api_token:
+    description: "Jira API token"
+    required: false
+
+  # Create issue(s) on failure
+  jira_create_on_failure:
+    description: "Create Jira issue(s) when failures exist (true/false)"
+    required: false
+    default: "false"
+  jira_project_key:
+    description: "Jira project key (e.g. ENG)"
+    required: false
+  jira_issue_type:
+    description: "Issue type (Bug/Task)"
+    required: false
+    default: "Bug"
+  jira_create_mode:
+    description: "run|scenario (one issue per run, or per failing scenario)"
+    required: false
+    default: "run"
+  jira_labels:
+    description: "Comma-separated labels"
+    required: false
 
 runs:
   using: "composite"
@@ -56,10 +99,28 @@ runs:
         STONEY_TOKEN: ${{ inputs.token }}
         STONEY_TIMEOUT_MS: ${{ inputs.timeout_ms }}
         STONEY_RETRIES: ${{ inputs.retries }}
+
+        # Jira (for pulling suites)
+        JIRA_BASE_URL: ${{ inputs.jira_base_url }}
+        JIRA_EMAIL: ${{ inputs.jira_email }}
+        JIRA_API_TOKEN: ${{ inputs.jira_api_token }}
       run: |
+        JIRA_ARGS=""
+        if [ -n "${{ inputs.jira_issue }}" ]; then
+          # allow comma-separated
+          IFS=',' read -ra KEYS <<< "${{ inputs.jira_issue }}"
+          for k in "${KEYS[@]}"; do
+            kk="$(echo "$k" | xargs)"
+            if [ -n "$kk" ]; then
+              JIRA_ARGS="$JIRA_ARGS --jira-issue $kk"
+            fi
+          done
+        fi
+
         node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
           --suite "${{ inputs.suite }}" \
-          --report "${{ inputs.report }}"
+          --report "${{ inputs.report }}" \
+          $JIRA_ARGS
 
     - name: Upload report artifact
       if: ${{ inputs.upload_artifact == 'true' }}
@@ -96,15 +157,15 @@ runs:
           const lines = [];
           lines.push(marker);
           lines.push(`### 🪨 Stoney report`);
-          lines.push(`**Base URL:** \`${baseUrl}\``);
+          if (baseUrl) lines.push(`**Base URL:** \`${baseUrl}\``);
           lines.push(`**Result:** ${ok ? '✅ PASS' : '❌ FAIL'} — **${passed}/${total}** passed`);
 
           if (bad.length) {
             lines.push(`\n**Failures (first ${bad.length}):**`);
             for (const r of bad) {
-              lines.push(`- ❌ \`${r.contract} :: ${r.id}\` — **${r.status ?? '?'}** — \`${r.method} ${r.url}\``);
+              lines.push(`- ❌ \`${r.contract} :: ${r.id}\` — \`${(r.method||'').toString()} ${(r.url||'').toString()}\``);
               if (Array.isArray(r.notes) && r.notes.length) {
-                for (const n of r.notes.slice(0, 2)) lines.push(`  - ${n}`);
+                for (const n of r.notes.slice(0, 3)) lines.push(`  - ${n}`);
               }
             }
             lines.push(`\n(See artifact \`${artifactName}\` for full JSON report.)`);
@@ -125,3 +186,129 @@ runs:
           } else {
             await github.rest.issues.createComment({ owner, repo, issue_number, body });
           }
+
+    - name: Create Jira issue(s) on failure
+      if: ${{ inputs.jira_create_on_failure == 'true' && inputs.jira_project_key != '' && inputs.jira_base_url != '' && inputs.jira_email != '' && inputs.jira_api_token != '' }}
+      shell: bash
+      env:
+        REPORT_PATH: ${{ inputs.report }}
+        JIRA_BASE_URL: ${{ inputs.jira_base_url }}
+        JIRA_EMAIL: ${{ inputs.jira_email }}
+        JIRA_API_TOKEN: ${{ inputs.jira_api_token }}
+        JIRA_PROJECT_KEY: ${{ inputs.jira_project_key }}
+        JIRA_ISSUE_TYPE: ${{ inputs.jira_issue_type }}
+        JIRA_CREATE_MODE: ${{ inputs.jira_create_mode }}
+        JIRA_LABELS: ${{ inputs.jira_labels }}
+        GH_REPO: ${{ github.repository }}
+        GH_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        GH_SHA: ${{ github.sha }}
+        GH_REF: ${{ github.ref }}
+      run: |
+        node - <<'NODE'
+        const fs = require("fs");
+
+        const reportPath = process.env.REPORT_PATH || "stoney-report.json";
+        if (!fs.existsSync(reportPath)) {
+          console.log("No report found; skipping Jira.");
+          process.exit(0);
+        }
+
+        const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+        const ok = !!report.ok;
+        if (ok) {
+          console.log("Run passed; skipping Jira.");
+          process.exit(0);
+        }
+
+        const failures = (report.results || []).filter(r => !r.ok);
+        if (!failures.length) process.exit(0);
+
+        const base = process.env.JIRA_BASE_URL.replace(/\/+$/, "");
+        const auth = Buffer.from(`${process.env.JIRA_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString("base64");
+        const mode = (process.env.JIRA_CREATE_MODE || "run").toLowerCase();
+        const labels = (process.env.JIRA_LABELS || "").split(",").map(s => s.trim()).filter(Boolean);
+
+        const ghRun = process.env.GH_RUN_URL;
+        const repo = process.env.GH_REPO;
+        const sha = (process.env.GH_SHA || "").slice(0, 7);
+        const ref = process.env.GH_REF;
+
+        function mkPayload(summary, descriptionText) {
+          const fields = {
+            project: { key: process.env.JIRA_PROJECT_KEY },
+            issuetype: { name: process.env.JIRA_ISSUE_TYPE || "Bug" },
+            summary,
+            description: descriptionText,
+          };
+          if (labels.length) fields.labels = labels;
+          return { fields };
+        }
+
+        function runIssuePayload() {
+          const lines = [];
+          lines.push(`Stoney failures in ${repo}`);
+          lines.push(`Run: ${ghRun}`);
+          lines.push(`Ref: ${ref}`);
+          lines.push(`SHA: ${sha}`);
+          lines.push("");
+          for (const f of failures.slice(0, 20)) {
+            lines.push(`- ${f.contract} :: ${f.id}`);
+            if (Array.isArray(f.notes)) for (const n of f.notes.slice(0, 5)) lines.push(`  - ${n}`);
+          }
+          return mkPayload(
+            `[Stoney] Failures in ${repo} (${failures.length})`,
+            lines.join("\n")
+          );
+        }
+
+        function scenarioPayloads() {
+          return failures.map((f) => {
+            const lines = [];
+            lines.push(`Stoney scenario failed in ${repo}`);
+            lines.push(`Run: ${ghRun}`);
+            lines.push(`Ref: ${ref}`);
+            lines.push(`SHA: ${sha}`);
+            lines.push("");
+            lines.push(`${f.contract} :: ${f.id}`);
+            if (Array.isArray(f.notes)) {
+              lines.push("");
+              for (const n of f.notes.slice(0, 20)) lines.push(`- ${n}`);
+            }
+            return mkPayload(`[Stoney] ${repo} :: ${f.contract} :: ${f.id}`, lines.join("\n"));
+          });
+        }
+
+        async function createIssue(payload) {
+          const res = await fetch(`${base}/rest/api/3/issue`, {
+            method: "POST",
+            headers: {
+              authorization: `Basic ${auth}`,
+              "content-type": "application/json",
+              accept: "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const txt = await res.text();
+            throw new Error(`Jira create failed: ${res.status} ${txt}`);
+          }
+          return res.json();
+        }
+
+        (async () => {
+          try {
+            if (mode === "scenario") {
+              for (const p of scenarioPayloads()) {
+                const created = await createIssue(p);
+                console.log(`Created Jira issue: ${created.key}`);
+              }
+            } else {
+              const created = await createIssue(runIssuePayload());
+              console.log(`Created Jira issue: ${created.key}`);
+            }
+          } catch (e) {
+            console.error(String(e?.message || e));
+            process.exit(1);
+          }
+        })();
+        NODE
