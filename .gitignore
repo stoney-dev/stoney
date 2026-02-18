@@ -25,3 +25,6 @@ yarn-error.log*
 # misc
 *.pem
 *.tsbuildinfo
+
+local-report.json
+stoney-report.json

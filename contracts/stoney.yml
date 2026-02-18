@@ -1,11 +1,17 @@
-# contracts/stoney.yml
 version: 1
 suite: core
 
 contracts:
   - name: health
+    req:
+      issue: "KAN-100"
+      links:
+        - "https://confluence.example.com/health-spec"
     scenarios:
       - id: health_ok
+        req:
+          ac: ["AC-1"]
+          text: "GET /health returns 200 with ok:true"
         steps:
           - http:
               method: GET
@@ -18,6 +24,10 @@ contracts:
   - name: ping
     scenarios:
       - id: ping_ok
+        req:
+          issue: "KAN-100"
+          ac: ["AC-2"]
+          text: "Public ping works"
         steps:
           - http:
               method: GET
@@ -27,64 +37,16 @@ contracts:
               json:
                 ok: true
 
-  - name: private_ping
-    scenarios:
-      - id: private_requires_token
-        steps:
-          - http:
-              method: GET
-              path: /private/ping
-              headers:
-                Authorization: "Bearer ${STONEY_TOKEN}"
-            expect:
-              status: 200
-              json:
-                private: true
-
-  # ✅ DB invariants (Postgres)
-  - name: db_invariants
-    scenarios:
-      - id: users_table_exists
-        steps:
-          - sql:
-              driver: postgres
-              url_env: STONEY_DB_URL
-              query: |
-                SELECT to_regclass('public.users') AS table_name;
-            expect:
-              rows: 1
-              equals:
-                table_name: users
-
-      - id: no_failed_jobs
-        steps:
-          - sql:
-              driver: postgres
-              url_env: STONEY_DB_URL
-              query: |
-                SELECT COUNT(*)::int AS failed
-                FROM jobs
-                WHERE status = 'failed';
-            expect:
-              rows: 1
-              equals:
-                failed: 0
-
-  # ✅ Exec step example (useful for custom behavior / scripts)
   - name: exec_checks
     scenarios:
       - id: runs_smoke_script
+        req:
+          issue: "KAN-100"
+          ac: ["AC-3"]
+          text: "Node is available in CI runner"
         steps:
           - exec:
               run: "node -v"
             expect:
               exit_code: 0
-              stdout_contains: "v"
-
-      - id: custom_command_example
-        steps:
-          - exec:
-              run: "echo STONEY_OK"
-            expect:
-              exit_code: 0
-              stdout_contains: "STONEY_OK"
+              stdout_regex: "^v\\d+\\."

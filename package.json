@@ -6,7 +6,7 @@
     "dev:stoney": "pnpm -C packages/runner dev",
     "build": "pnpm -C packages/runner build",
     "build:runner": "pnpm -C packages/runner build",
-    "stoney:run": "node packages/runner/dist/cli.js run --suite contracts/stoney.yml --report local-report.json",
+    "stoney:run": "node packages/runner/dist/cli.cjs run --suite \"contracts/*.yml\" --report local-report.json",
     "release:patch": "gh workflow run Release -f bump=patch",
     "release:minor": "gh workflow run Release -f bump=minor",
     "release:major": "gh workflow run Release -f bump=major"

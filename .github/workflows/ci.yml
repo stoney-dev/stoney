@@ -14,7 +14,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ensure dist exists
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: npm i -g pnpm@10
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build runner
+        run: pnpm -C packages/runner build
+
+      - name: Ensure dist exists + smoke test
         run: |
           test -f packages/runner/dist/cli.cjs
           node packages/runner/dist/cli.cjs hello

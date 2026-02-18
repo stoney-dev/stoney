@@ -1,14 +1,22 @@
 name: Release
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/runner/**"
+      - "action.yml"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/**"
   workflow_dispatch:
     inputs:
       bump:
-        description: "Version bump type"
-        required: true
-        default: "patch"
+        description: "Optional manual bump override"
+        required: false
+        default: ""
         type: choice
         options:
+          - ""
           - patch
           - minor
           - major
@@ -16,14 +24,30 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # ✅ Prevent infinite loop: the workflow commits to main, which triggers push again
+      - name: Stop if this is a release commit
+        shell: bash
+        run: |
+          SUBJECT="$(git log -1 --pretty=%s)"
+          echo "Last commit subject: $SUBJECT"
+          if echo "$SUBJECT" | grep -q "^chore(release):"; then
+            echo "Release commit detected; skipping."
+            exit 0
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -45,11 +69,52 @@ jobs:
             exit 1
           fi
 
+      - name: Determine bump type
+        id: bump
+        shell: bash
+        run: |
+          # Manual override via workflow_dispatch input
+          if [ -n "${{ inputs.bump }}" ]; then
+            echo "bump=${{ inputs.bump }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            RANGE="HEAD~20..HEAD"
+          else
+            RANGE="$BEFORE..$AFTER"
+          fi
+
+          echo "Inspecting commits in range: $RANGE"
+          MSG="$(git log --format=%B $RANGE)"
+
+          if echo "$MSG" | grep -q "BREAKING CHANGE"; then
+            echo "bump=major" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if echo "$MSG" | grep -Eq "^[a-zA-Z]+(\(.+\))?!:"; then
+            echo "bump=major" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if echo "$MSG" | grep -Eq "^feat(\(.+\))?:"; then
+            echo "bump=minor" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if echo "$MSG" | grep -Eq "^fix(\(.+\))?:"; then
+            echo "bump=patch" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "bump=patch" >> "$GITHUB_OUTPUT"
+
       - name: Bump version (runner)
         shell: bash
         run: |
           cd packages/runner
-          npm version ${{ inputs.bump }} --no-git-tag-version
+          npm version ${{ steps.bump.outputs.bump }} --no-git-tag-version
 
       - name: Build bundled runner
         run: pnpm -C packages/runner build
@@ -63,14 +128,14 @@ jobs:
         id: v
         shell: bash
         run: |
-          node -e "import('./packages/runner/package.json', { assert: { type: 'json' } }).then(m => console.log('version='+m.default.version))" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./packages/runner/package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Commit version bump + dist + action.yml
         shell: bash
         run: |
           git config user.name "stoney-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add packages/runner/package.json packages/runner/dist action.yml packages/runner/tsup.config.ts pnpm-lock.yaml
+          git add packages/runner/package.json packages/runner/dist action.yml pnpm-lock.yaml
           git commit -m "chore(release): v${{ steps.v.outputs.version }}" || (echo "Nothing to commit" && exit 1)
 
       - name: Tag and push
