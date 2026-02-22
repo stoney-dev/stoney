@@ -194,10 +194,24 @@ runs:
             return;
           }
 
+          function clip(s, n) {
+            s = String(s ?? "");
+            if (s.length <= n) return s;
+            return s.slice(0, n - 1) + "…";
+          }
+
+          function fence(label, content, max = 600) {
+            const txt = clip(content ?? "", max);
+            if (!txt) return null;
+            const safe = txt.replace(/```/g, "``\\`");
+            return `\n\`\`\`${label}\n${safe}\n\`\`\`\n`;
+          }
+
           const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
-          const total = report.total ?? 0;
-          const failed = report.failed ?? 0;
-          const passed = report.passed ?? (total - failed);
+
+          const total = report.total ?? (Array.isArray(report.results) ? report.results.length : 0);
+          const failed = report.failed ?? (Array.isArray(report.results) ? report.results.filter((r) => !r.ok).length : 0);
+          const passed = report.passed ?? Math.max(0, total - failed);
           const baseUrl = report.baseUrl ?? "";
           const ok = !!report.ok;
 
@@ -205,49 +219,84 @@ runs:
 
           const marker = "<!-- stoney-report -->";
           const lines = [];
-          lines.push(marker);
-          lines.push(`### 🪨 Stoney report`);
-          if (baseUrl) lines.push(`**Base URL:** \`${baseUrl}\``);
-          lines.push(`**Result:** ${ok ? "✅ PASS" : "❌ FAIL"} — **${passed}/${total}** passed`);
 
-          if (bad.length) {
-            lines.push(`\n**Failures (first ${bad.length}):**`);
+          // Helpful run link
+          const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+          const runLink = `[workflow run](${runUrl})`;
+
+          lines.push(marker);
+          lines.push(`### 🪨 Stoney Report — ${ok ? "✅ PASS" : "❌ FAIL"}`);
+          lines.push(`**${passed}/${total}** passed${failed ? ` · **${failed}** failed` : ""}`);
+          lines.push("");
+          lines.push(`- **Base URL:** ${baseUrl ? `\`${baseUrl}\`` : "_(not set)_"}`);
+          lines.push(`- **Artifact:** \`${artifactName}\` · ${runLink}`);
+          lines.push("");
+          lines.push(`---`);
+
+          if (!bad.length) {
+            lines.push("");
+            lines.push(`✅ All contracts satisfied. (See artifact \`${artifactName}\` for full JSON report.)`);
+          } else {
+            lines.push("");
+            lines.push(`**Failures (showing first ${bad.length}):**`);
+            lines.push("");
 
             for (const r of bad) {
-              lines.push(`- ❌ \`${r.contract} :: ${r.id}\``);
+              const title = `❌ ${r.contract} :: ${r.id}`;
+              lines.push(`<details>`);
+              lines.push(`<summary><strong>${title}</strong></summary>`);
+              lines.push("");
 
-              // req mapping (optional)
+              // requirement mapping (optional)
               if (r.req) {
                 const issue = r.req.issue ? String(r.req.issue) : "";
                 const ac = Array.isArray(r.req.ac) ? r.req.ac.join(", ") : "";
                 const text = r.req.text ? String(r.req.text) : "";
-                const tag = [issue, ac].filter(Boolean).join(" ");
-                const reqLine = [tag, text].filter(Boolean).join(" — ");
-                if (reqLine) lines.push(`  - req: ${reqLine}`);
+                const reqTag = [issue, ac].filter(Boolean).join(" ");
+                const reqText = text ? ` — ${text}` : "";
+                if (reqTag || reqText) lines.push(`- **Requirement:** ${clip(reqTag, 220)}${clip(reqText, 260)}`);
+
+                if (Array.isArray(r.req.links) && r.req.links.length) {
+                  const links = r.req.links.slice(0, 3).map((u) => `[link](${u})`).join(" · ");
+                  lines.push(`- **Links:** ${links}`);
+                }
               }
 
-              // scenario notes (cap)
+              // scenario notes
               if (Array.isArray(r.notes) && r.notes.length) {
-                for (const n of r.notes.slice(0, 3)) lines.push(`  - ${n}`);
+                lines.push(`- **Notes:**`);
+                for (const n of r.notes.slice(0, 3)) lines.push(`  - ${clip(n, 240)}`);
               }
 
-              // show up to 2 failing steps with a few notes + optional output
+              // failing steps
               const steps = Array.isArray(r.steps) ? r.steps : [];
               const failing = steps.filter((s) => s && s.ok === false).slice(0, 2);
 
-              for (const s of failing) {
-                lines.push(`  - step: \`${s.title}\``);
+              if (failing.length) {
+                lines.push(`- **Failing steps:**`);
+                for (const s of failing) {
+                  lines.push(`  - \`${clip(s.title, 140)}\``);
 
-                if (Array.isArray(s.notes) && s.notes.length) {
-                  for (const n of s.notes.slice(0, 3)) lines.push(`    - ${n}`);
+                  if (Array.isArray(s.notes) && s.notes.length) {
+                    for (const n of s.notes.slice(0, 3)) lines.push(`    - ${clip(n, 240)}`);
+                  }
+
+                  const out = fence("text", s.stdout, 500);
+                  const err = fence("text", s.stderr, 500);
+
+                  if (out) lines.push(`\n**stdout**${out}`);
+                  if (err) lines.push(`\n**stderr**${err}`);
                 }
-
-                if (s.stdout) lines.push(`    - stdout: \`${String(s.stdout).slice(0, 180)}\``);
-                if (s.stderr) lines.push(`    - stderr: \`${String(s.stderr).slice(0, 180)}\``);
               }
+
+              lines.push("");
+              lines.push(`</details>`);
+              lines.push("");
             }
 
-            lines.push(`\n(See artifact \`${artifactName}\` for full JSON report.)`);
+            lines.push(`---`);
+            lines.push(`📦 Full details: download artifact \`${artifactName}\` (JSON report).`);
+            lines.push(`🧪 Re-run: \`node packages/runner/dist/cli.cjs run --suite "${process.env.INPUT_SUITE || "contracts/*.yml"}" --report "${reportPath}"\``);
           }
 
           const body = lines.join("\n");

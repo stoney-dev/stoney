@@ -2,7 +2,7 @@ import http from "node:http";
 import { URL } from "node:url";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
-const REQUIRED_TOKEN = process.env.STONEY_TARGET_TOKEN || "devtoken";
+const REQUIRED_TOKEN = process.env.STONEY_TOKEN || "devtoken";
 
 function json(res, status, obj) {
   const body = JSON.stringify(obj);
