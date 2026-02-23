@@ -55,15 +55,15 @@ inputs:
     required: false
     default: "false"
 
-  # ✅ NEW: Jira enforcement (req.issue must exist on every scenario)
+  # ✅ Jira enforcement (req.issue must exist on every scenario)
   require_jira_issue:
     description: "Fail if a scenario is missing req.issue (true/false)"
     required: false
     default: "false"
 
-  # ✅ NEW: Jira validation (read-only)
+  # ✅ Jira validation (read-only)
   validate_jira_issues:
-    description: "Validate req.issue exists in Jira (true/false)"
+    description: "Validate req.issue exists in Jira (read-only) (true/false)"
     required: false
     default: "false"
 
@@ -100,6 +100,7 @@ runs:
         STONEY_RETRIES: ${{ inputs.retries }}
         STONEY_DB_URL: ${{ inputs.db_url }}
 
+        # only used if validate_jira_issues=true
         JIRA_BASE_URL: ${{ inputs.jira_base_url }}
         JIRA_EMAIL: ${{ inputs.jira_email }}
         JIRA_API_TOKEN: ${{ inputs.jira_api_token }}
@@ -117,7 +118,7 @@ runs:
         fi
 
         if [ "${{ inputs.validate_jira_issues }}" = "true" ]; then
-          # ensure auth is present (runner will also validate, but fail fast here)
+          # fail fast if auth missing
           if [ -z "${{ inputs.jira_base_url }}" ] || [ -z "${{ inputs.jira_email }}" ] || [ -z "${{ inputs.jira_api_token }}" ]; then
             echo "validate_jira_issues=true but jira_base_url/jira_email/jira_api_token missing"
             exit 2
@@ -127,6 +128,7 @@ runs:
 
         node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
           --suite "${{ inputs.suite }}" \
+          --base-url "${{ inputs.base_url }}" \
           --report "${{ inputs.report }}" \
           "${ARGS[@]}"
 
@@ -140,6 +142,10 @@ runs:
     - name: PR comment summary
       if: ${{ inputs.comment_pr == 'true' && github.event_name == 'pull_request' }}
       uses: actions/github-script@v7
+      env:
+        INPUT_REPORT: ${{ inputs.report }}
+        INPUT_ARTIFACT_NAME: ${{ inputs.artifact_name }}
+        INPUT_SUITE: ${{ inputs.suite }}
       with:
         script: |
           const fs = require("fs");

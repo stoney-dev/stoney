@@ -4,14 +4,14 @@ import yaml from "js-yaml";
 import { interpolate } from "./env.js";
 
 /**
- * Requirements-as-code mapping.
- * Jira is optional: issue can be Jira key, GitHub issue, or any external ref.
+ * Work item mapping.
+ * ✅ Required for every scenario (enforced in CLI): req.issue must be a Jira key.
  */
-export type RequirementLink = {
-  issue?: string; // e.g. "KAN-102"
-  ac?: string[]; // e.g. ["AC-1", "AC-2"]
-  text?: string; // short human label
-  links?: string[]; // optional URLs (docs/designs/confluence/etc)
+export type WorkItem = {
+  issue: string; // e.g. "KAN-123"
+  // Optional human context (never required by enforcement)
+  text?: string;
+  links?: string[];
 };
 
 export type HttpStep = {
@@ -28,8 +28,6 @@ export type ExecStep = {
   env?: Record<string, string>;
   timeout_ms?: number;
   retries?: number;
-
-  // optional: runner uses this if present
   max_output_chars?: number;
 };
 
@@ -51,7 +49,7 @@ export type Expectation = {
   stdout_contains?: string;
   stderr_contains?: string;
 
-  // exec extras (supported by your exec runner)
+  // exec extras
   stdout_not_contains?: string;
   stderr_not_contains?: string;
   stdout_regex?: string;
@@ -74,13 +72,14 @@ export type Scenario = {
   id: string;
 
   /**
-   * requirement mapping for this scenario (optionally merged with contract.req)
+   * Work item mapping for this scenario.
+   * May be inherited from contract.req and overridden at scenario-level.
    */
-  req?: RequirementLink;
+  req?: WorkItem;
 
   steps?: Step[];
 
-  // legacy support:
+  // legacy support (still ok to keep, it doesn’t involve Jira):
   http?: HttpStep;
   exec?: ExecStep;
   sql?: SqlStep;
@@ -91,10 +90,10 @@ export type Contract = {
   name: string;
 
   /**
-   * Optional default requirements for all scenarios in this contract.
-   * Scenario-level req merges/overrides this.
+   * Optional default work item for all scenarios in this contract.
+   * Scenario-level req overrides.
    */
-  req?: RequirementLink;
+  req?: WorkItem;
 
   scenarios: Scenario[];
 };
@@ -130,39 +129,36 @@ function parseFile(abs: string): unknown {
   fail(`Unsupported file type: ${abs}`);
 }
 
-function parseReq(raw: any): RequirementLink | undefined {
+function parseReq(raw: any): WorkItem | undefined {
   if (!isObj(raw)) return undefined;
 
-  const issue = asString(raw.issue).trim() || undefined;
+  const issue = asString(raw.issue).trim() || "";
   const text = asString(raw.text).trim() || undefined;
-  const ac = asStringArray(raw.ac);
   const links = asStringArray(raw.links);
 
-  const out: RequirementLink = {};
+  // allow ${ENV} interpolation
+  const out: any = {};
   if (issue) out.issue = issue;
   if (text) out.text = text;
-  if (ac) out.ac = ac;
   if (links) out.links = links;
 
-  // allow ${ENV} interpolation inside req too
   return Object.keys(out).length ? (interpolate(out) as any) : undefined;
 }
 
 /**
  * Merge rule:
  * - base first (contract.req), scenario overrides.
- * - arrays replace (not concat) to avoid surprising behavior.
+ * - arrays replace (not concat).
  */
-function mergeReq(base?: RequirementLink, override?: RequirementLink): RequirementLink | undefined {
+function mergeReq(base?: WorkItem, override?: WorkItem): WorkItem | undefined {
   if (!base && !override) return undefined;
-  const out: RequirementLink = { ...(base || {}) };
+  const out: WorkItem = { ...(base || ({} as any)) } as any;
 
   if (override?.issue) out.issue = override.issue;
   if (override?.text) out.text = override.text;
-  if (override?.ac) out.ac = override.ac;
   if (override?.links) out.links = override.links;
 
-  return Object.keys(out).length ? out : undefined;
+  return out.issue ? out : undefined;
 }
 
 function parseHttp(rawHttp: any, id: string): HttpStep {
@@ -213,7 +209,7 @@ function parseSql(rawSql: any, id: string): SqlStep {
   };
 }
 
-function normalizeScenario(raw: any, contractReq?: RequirementLink): Scenario {
+function normalizeScenario(raw: any, contractReq?: WorkItem): Scenario {
   if (!isObj(raw)) fail(`Scenario must be an object.`);
   const id = asString(raw.id || "").trim();
   if (!id) fail(`Scenario id required.`);
@@ -274,15 +270,4 @@ export function loadSuite(filePath: string): SuiteFileV1 {
   });
 
   return { version: 1, suite: data.suite, contracts };
-}
-
-/**
- * Helper used by CLI enforcement (optional)
- */
-export function hasReqMapping(req: RequirementLink | undefined): boolean {
-  if (!req) return false;
-  if (typeof req.text === "string" && req.text.trim()) return true;
-  if (typeof req.issue === "string" && req.issue.trim()) return true;
-  if (Array.isArray(req.ac) && req.ac.length) return true;
-  return false;
 }
