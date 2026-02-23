@@ -49,21 +49,9 @@ inputs:
     required: false
     default: "true"
 
-  # ✅ requirements enforcement (any req mapping)
-  require_req:
-    description: "Fail if a scenario is missing req mapping (true/false)"
-    required: false
-    default: "false"
-
-  # ✅ Jira enforcement (req.issue must exist on every scenario)
-  require_jira_issue:
-    description: "Fail if a scenario is missing req.issue (true/false)"
-    required: false
-    default: "false"
-
-  # ✅ Jira validation (read-only)
-  validate_jira_issues:
-    description: "Validate req.issue exists in Jira (read-only) (true/false)"
+  # ✅ Preferred behavior: require req.issue AND verify it exists in Jira (read-only)
+  require_jira:
+    description: "Require req.issue for every scenario AND verify issue exists in Jira (true/false)"
     required: false
     default: "false"
 
@@ -72,7 +60,7 @@ inputs:
     description: "Postgres connection string for SQL checks (STONEY_DB_URL)"
     required: false
 
-  # Jira auth (only needed if validate_jira_issues=true)
+  # Jira auth (required only if require_jira=true)
   jira_base_url:
     description: "Jira base URL (e.g. https://yourcompany.atlassian.net)"
     required: false
@@ -100,7 +88,7 @@ runs:
         STONEY_RETRIES: ${{ inputs.retries }}
         STONEY_DB_URL: ${{ inputs.db_url }}
 
-        # only used if validate_jira_issues=true
+        # Jira env consumed by jiraIssueExists()
         JIRA_BASE_URL: ${{ inputs.jira_base_url }}
         JIRA_EMAIL: ${{ inputs.jira_email }}
         JIRA_API_TOKEN: ${{ inputs.jira_api_token }}
@@ -109,21 +97,13 @@ runs:
 
         ARGS=()
 
-        if [ "${{ inputs.require_req }}" = "true" ]; then
-          ARGS+=( --require-req )
-        fi
-
-        if [ "${{ inputs.require_jira_issue }}" = "true" ]; then
-          ARGS+=( --require-jira-issue )
-        fi
-
-        if [ "${{ inputs.validate_jira_issues }}" = "true" ]; then
+        if [ "${{ inputs.require_jira }}" = "true" ]; then
           # fail fast if auth missing
           if [ -z "${{ inputs.jira_base_url }}" ] || [ -z "${{ inputs.jira_email }}" ] || [ -z "${{ inputs.jira_api_token }}" ]; then
-            echo "validate_jira_issues=true but jira_base_url/jira_email/jira_api_token missing"
+            echo "require_jira=true but jira_base_url/jira_email/jira_api_token missing"
             exit 2
           fi
-          ARGS+=( --validate-jira-issues )
+          ARGS+=( --require-jira )
         fi
 
         node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
