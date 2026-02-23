@@ -7,7 +7,7 @@ import { loadSuite, type SuiteFileV1, type Step, hasReqMapping } from "./contrac
 import { runHttpStep } from "./http.js";
 import { runExecStep } from "./exec.js";
 import { runSqlStep } from "./sql.js";
-import { loadSuiteFromJiraIssue } from "./jira.js";
+import { jiraIssueExists } from "./jira.js";
 import type { ScenarioResult, StepResult } from "./types.js";
 
 const program = new Command();
@@ -65,53 +65,47 @@ function printReqLine(req: any) {
 
 /**
  * If the user provided an explicit boolean flag, it should win over env.
- * Commander sets flags to true/false. But we need to know if it was explicitly provided.
  */
 function didUserPassFlag(argv: string[], flag: string): boolean {
   return argv.includes(flag);
 }
 
+function getReqIssue(req: any): string {
+  const v = req?.issue;
+  return typeof v === "string" ? v.trim() : "";
+}
+
 program
   .command("run")
   .requiredOption("--suite <glob>", "Suite file path or glob (e.g. contracts/*.yml)")
-  .option(
-    "--jira-issue <key>",
-    "Jira issue key containing a stoney/yaml code block (repeatable)",
-    (v, p: string[]) => (p ? [...p, v] : [v]),
-    []
-  )
   .option("--base-url <url>", "Base URL (defaults to STONEY_BASE_URL env var)")
   .option("--report <path>", "JSON report output path", "stoney-report.json")
   .option("--only-contract <name>", "Run only one contract by name")
   .option("--only-scenario <id>", "Run only one scenario id")
   .option("--fail-fast", "Stop on first failure", false)
   .option("--require-req", "Fail scenarios missing req mapping", false)
+  .option("--require-jira-issue", "Fail scenarios missing req.issue", false)
+  .option("--validate-jira-issues", "Validate req.issue exists in Jira (read-only)", false)
   .action(async (opts: any) => {
     const baseUrl = opts.baseUrl || process.env.STONEY_BASE_URL;
 
-    // ✅ Make requireReq deterministic:
-    // - if flag was explicitly passed, use it
-    // - else fall back to env
     const argv = process.argv.slice(2);
-    const requireReq = didUserPassFlag(argv, "--require-req") ? Boolean(opts.requireReq) : envFlag("STONEY_REQUIRE_REQ");
 
-    // Load local suite files
+    const requireReq = didUserPassFlag(argv, "--require-req") ? Boolean(opts.requireReq) : envFlag("STONEY_REQUIRE_REQ");
+    const requireJiraIssue = didUserPassFlag(argv, "--require-jira-issue")
+      ? Boolean(opts.requireJiraIssue)
+      : envFlag("STONEY_REQUIRE_JIRA_ISSUE");
+    const validateJiraIssues = didUserPassFlag(argv, "--validate-jira-issues")
+      ? Boolean(opts.validateJiraIssues)
+      : envFlag("STONEY_VALIDATE_JIRA_ISSUES");
+
+    // Load local suite files only (repo is source of truth)
     const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
     const suites: SuiteFileV1[] = [];
     for (const p of suitePaths) suites.push(loadSuite(p));
 
-    // Load suites from Jira issues (optional)
-    const jiraKeys: string[] = Array.isArray(opts.jiraIssue) ? opts.jiraIssue : [];
-    for (const key of jiraKeys) {
-      console.log(`🔎 Jira: fetching suite from issue ${key} ...`);
-      const parsed = await loadSuiteFromJiraIssue(key);
-      if (!parsed || typeof parsed !== "object") throw new Error(`Jira suite ${key} did not parse to an object.`);
-      console.log(`✅ Jira: loaded suite from issue ${key}`);
-      suites.push(parsed as any);
-    }
-
     if (!suites.length) {
-      console.error(`No suite files matched: ${opts.suite} and no Jira issues provided.`);
+      console.error(`No suite files matched: ${opts.suite}`);
       process.exit(2);
     }
 
@@ -123,6 +117,8 @@ program
     if (baseUrl) console.log(`Base URL: ${baseUrl}`);
     console.log(`Suites loaded: ${suites.length}`);
     if (requireReq) console.log(`Req enforcement: ON`);
+    if (requireJiraIssue) console.log(`Jira issue required: ON`);
+    if (validateJiraIssues) console.log(`Jira issue validation: ON`);
     console.log("");
 
     for (const suite of suites) {
@@ -139,23 +135,50 @@ program
           const steps = normalizeSteps(scenario);
           let scenarioOk = true;
 
-          // Scenario-level notes ONLY (no step notes here)
           const scenarioNotes: string[] = [];
-
-          // Collect step results (including failures)
           const stepResults: StepResult[] = [];
 
-          // Optional: enforce req mapping (fast fail)
-          if (requireReq && !hasReqMapping((scenario as any).req)) {
+          const reqObj = (scenario as any).req;
+
+          // 1) require any req mapping (existing behavior)
+          if (requireReq && !hasReqMapping(reqObj)) {
             scenarioOk = false;
             scenarioNotes.push("Missing req mapping (required). Add req.text and/or req.ac.");
+          }
+
+          // 2) require req.issue (new)
+          if (scenarioOk && requireJiraIssue) {
+            const issue = getReqIssue(reqObj);
+            if (!issue) {
+              scenarioOk = false;
+              scenarioNotes.push("Missing req.issue (required). Add req.issue: \"KAN-123\".");
+            }
+          }
+
+          // 3) validate req.issue exists in Jira (new, read-only)
+          if (scenarioOk && validateJiraIssues) {
+            const issue = getReqIssue(reqObj);
+            if (!issue) {
+              scenarioOk = false;
+              scenarioNotes.push("Cannot validate Jira issue because req.issue is missing.");
+            } else {
+              try {
+                const chk = await jiraIssueExists(issue);
+                if (!chk.ok) {
+                  scenarioOk = false;
+                  scenarioNotes.push(`Jira issue validation failed for ${issue}: ${chk.message || `status=${chk.status}`}`);
+                }
+              } catch (e: any) {
+                scenarioOk = false;
+                scenarioNotes.push(`Jira issue validation error for ${issue}: ${e?.message || String(e)}`);
+              }
+            }
           }
 
           let method: string | undefined;
           let url: string | undefined;
           let status: number | undefined;
 
-          // Run steps only if req enforcement didn't already fail
           if (scenarioOk) {
             if (!steps.length) {
               scenarioOk = false;
@@ -182,7 +205,7 @@ program
           const row: ScenarioResult = {
             id: scenario.id,
             ok: scenarioOk,
-            req: (scenario as any).req,
+            req: reqObj,
             method,
             url,
             status,
@@ -197,16 +220,14 @@ program
           } else {
             failed++;
             console.log(`  ❌ ${scenario.id}`);
-            printReqLine((scenario as any).req);
+            printReqLine(reqObj);
 
-            // Print failing steps
             const badSteps = stepResults.filter((x) => !x.ok);
             for (const sr of badSteps) {
               console.log(`     ${sr.title}`);
               for (const n of sr.notes) console.log(`     - ${n}`);
             }
 
-            // Print scenario-level notes (req enforcement, no steps, etc.)
             for (const n of scenarioNotes) console.log(`     - ${n}`);
 
             if (opts.failFast) break;

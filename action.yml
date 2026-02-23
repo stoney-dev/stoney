@@ -49,9 +49,21 @@ inputs:
     required: false
     default: "true"
 
-  # ✅ requirements enforcement
+  # ✅ requirements enforcement (any req mapping)
   require_req:
     description: "Fail if a scenario is missing req mapping (true/false)"
+    required: false
+    default: "false"
+
+  # ✅ NEW: Jira enforcement (req.issue must exist on every scenario)
+  require_jira_issue:
+    description: "Fail if a scenario is missing req.issue (true/false)"
+    required: false
+    default: "false"
+
+  # ✅ NEW: Jira validation (read-only)
+  validate_jira_issues:
+    description: "Validate req.issue exists in Jira (true/false)"
     required: false
     default: "false"
 
@@ -60,11 +72,7 @@ inputs:
     description: "Postgres connection string for SQL checks (STONEY_DB_URL)"
     required: false
 
-  # Optional Jira suite loading + creation (still supported, but not required)
-  jira_issue:
-    description: "Optional Jira issue key (or comma-separated keys) containing a suite in a code block"
-    required: false
-
+  # Jira auth (only needed if validate_jira_issues=true)
   jira_base_url:
     description: "Jira base URL (e.g. https://yourcompany.atlassian.net)"
     required: false
@@ -73,33 +81,6 @@ inputs:
     required: false
   jira_api_token:
     description: "Jira API token"
-    required: false
-
-  jira_create_on_failure:
-    description: "Create Jira issue(s) when failures exist (true/false)"
-    required: false
-    default: "false"
-
-  jira_project_key:
-    description: "Jira project key (e.g. ENG)"
-    required: false
-
-  jira_issue_type:
-    description: "Preferred Jira issue type name (Bug/Task/etc). Runner will resolve to a valid type for the project."
-    required: false
-    default: "Bug"
-
-  jira_issue_type_id:
-    description: "Preferred issue type id (most reliable). Optional."
-    required: false
-
-  jira_create_mode:
-    description: "run|scenario (one issue per run, or per failing scenario)"
-    required: false
-    default: "run"
-
-  jira_labels:
-    description: "Comma-separated labels"
     required: false
 
 runs:
@@ -125,52 +106,29 @@ runs:
       run: |
         set -euo pipefail
 
-        REQ_ARGS=()
+        ARGS=()
+
         if [ "${{ inputs.require_req }}" = "true" ]; then
-          REQ_ARGS+=( --require-req )
+          ARGS+=( --require-req )
         fi
 
-        JIRA_ARGS=()
-        if [ -n "${{ inputs.jira_issue }}" ]; then
-          IFS=',' read -ra KEYS <<< "${{ inputs.jira_issue }}"
-          for k in "${KEYS[@]}"; do
-            kk="$(echo "$k" | xargs)"
-            if [ -n "$kk" ]; then
-              JIRA_ARGS+=( --jira-issue "$kk" )
-            fi
-          done
+        if [ "${{ inputs.require_jira_issue }}" = "true" ]; then
+          ARGS+=( --require-jira-issue )
         fi
 
-        CREATE_ARGS=()
-        if [ "${{ inputs.jira_create_on_failure }}" = "true" ]; then
-          if [ -z "${{ inputs.jira_project_key }}" ]; then
-            echo "jira_create_on_failure=true but jira_project_key is missing"
-            exit 2
-          fi
+        if [ "${{ inputs.validate_jira_issues }}" = "true" ]; then
+          # ensure auth is present (runner will also validate, but fail fast here)
           if [ -z "${{ inputs.jira_base_url }}" ] || [ -z "${{ inputs.jira_email }}" ] || [ -z "${{ inputs.jira_api_token }}" ]; then
-            echo "jira_create_on_failure=true but jira_base_url/jira_email/jira_api_token missing"
+            echo "validate_jira_issues=true but jira_base_url/jira_email/jira_api_token missing"
             exit 2
           fi
-
-          CREATE_ARGS+=( --jira-create-on-failure )
-          CREATE_ARGS+=( --jira-project-key "${{ inputs.jira_project_key }}" )
-          CREATE_ARGS+=( --jira-issue-type "${{ inputs.jira_issue_type }}" )
-          CREATE_ARGS+=( --jira-create-mode "${{ inputs.jira_create_mode }}" )
-
-          if [ -n "${{ inputs.jira_issue_type_id }}" ]; then
-            CREATE_ARGS+=( --jira-issue-type-id "${{ inputs.jira_issue_type_id }}" )
-          fi
-          if [ -n "${{ inputs.jira_labels }}" ]; then
-            CREATE_ARGS+=( --jira-labels "${{ inputs.jira_labels }}" )
-          fi
+          ARGS+=( --validate-jira-issues )
         fi
 
         node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
           --suite "${{ inputs.suite }}" \
           --report "${{ inputs.report }}" \
-          "${REQ_ARGS[@]}" \
-          "${JIRA_ARGS[@]}" \
-          "${CREATE_ARGS[@]}"
+          "${ARGS[@]}"
 
     - name: Upload report artifact
       if: ${{ inputs.upload_artifact == 'true' }}
@@ -220,7 +178,6 @@ runs:
           const marker = "<!-- stoney-report -->";
           const lines = [];
 
-          // Helpful run link
           const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
           const runLink = `[workflow run](${runUrl})`;
 
@@ -247,7 +204,6 @@ runs:
               lines.push(`<summary><strong>${title}</strong></summary>`);
               lines.push("");
 
-              // requirement mapping (optional)
               if (r.req) {
                 const issue = r.req.issue ? String(r.req.issue) : "";
                 const ac = Array.isArray(r.req.ac) ? r.req.ac.join(", ") : "";
@@ -262,13 +218,11 @@ runs:
                 }
               }
 
-              // scenario notes
               if (Array.isArray(r.notes) && r.notes.length) {
                 lines.push(`- **Notes:**`);
                 for (const n of r.notes.slice(0, 3)) lines.push(`  - ${clip(n, 240)}`);
               }
 
-              // failing steps
               const steps = Array.isArray(r.steps) ? r.steps : [];
               const failing = steps.filter((s) => s && s.ok === false).slice(0, 2);
 
@@ -296,7 +250,6 @@ runs:
 
             lines.push(`---`);
             lines.push(`📦 Full details: download artifact \`${artifactName}\` (JSON report).`);
-            lines.push(`🧪 Re-run: \`node packages/runner/dist/cli.cjs run --suite "${process.env.INPUT_SUITE || "contracts/*.yml"}" --report "${reportPath}"\``);
           }
 
           const body = lines.join("\n");
