@@ -7,11 +7,11 @@ branding:
 
 inputs:
   base_url:
-    description: "Base URL to run HTTP contracts against"
+    description: "Base URL to run HTTP checks against"
     required: false
 
   suite:
-    description: "Glob or file path for suite files (e.g. contracts/*.yml)"
+    description: "Glob or file path for contract files (e.g. contracts/*.yml)"
     required: false
     default: "contracts/*.yml"
 
@@ -49,9 +49,9 @@ inputs:
     required: false
     default: "true"
 
-  # ✅ Preferred behavior: require req.issue AND verify it exists in Jira (read-only)
+  # ✅ Single enforcement toggle (requires + validates existence)
   require_jira:
-    description: "Require req.issue for every scenario AND verify issue exists in Jira (true/false)"
+    description: "Require work_item and verify it exists in Jira (true/false)"
     required: false
     default: "false"
 
@@ -88,7 +88,6 @@ runs:
         STONEY_RETRIES: ${{ inputs.retries }}
         STONEY_DB_URL: ${{ inputs.db_url }}
 
-        # Jira env consumed by jiraIssueExists()
         JIRA_BASE_URL: ${{ inputs.jira_base_url }}
         JIRA_EMAIL: ${{ inputs.jira_email }}
         JIRA_API_TOKEN: ${{ inputs.jira_api_token }}
@@ -98,7 +97,6 @@ runs:
         ARGS=()
 
         if [ "${{ inputs.require_jira }}" = "true" ]; then
-          # fail fast if auth missing
           if [ -z "${{ inputs.jira_base_url }}" ] || [ -z "${{ inputs.jira_email }}" ] || [ -z "${{ inputs.jira_api_token }}" ]; then
             echo "require_jira=true but jira_base_url/jira_email/jira_api_token missing"
             exit 2
@@ -125,7 +123,6 @@ runs:
       env:
         INPUT_REPORT: ${{ inputs.report }}
         INPUT_ARTIFACT_NAME: ${{ inputs.artifact_name }}
-        INPUT_SUITE: ${{ inputs.suite }}
       with:
         script: |
           const fs = require("fs");
@@ -178,7 +175,7 @@ runs:
 
           if (!bad.length) {
             lines.push("");
-            lines.push(`✅ All contracts satisfied. (See artifact \`${artifactName}\` for full JSON report.)`);
+            lines.push(`✅ All checks satisfied. (See artifact \`${artifactName}\` for full JSON report.)`);
           } else {
             lines.push("");
             lines.push(`**Failures (showing first ${bad.length}):**`);
@@ -190,16 +187,10 @@ runs:
               lines.push(`<summary><strong>${title}</strong></summary>`);
               lines.push("");
 
-              if (r.req) {
-                const issue = r.req.issue ? String(r.req.issue) : "";
-                const ac = Array.isArray(r.req.ac) ? r.req.ac.join(", ") : "";
-                const text = r.req.text ? String(r.req.text) : "";
-                const reqTag = [issue, ac].filter(Boolean).join(" ");
-                const reqText = text ? ` — ${text}` : "";
-                if (reqTag || reqText) lines.push(`- **Requirement:** ${clip(reqTag, 220)}${clip(reqText, 260)}`);
-
-                if (Array.isArray(r.req.links) && r.req.links.length) {
-                  const links = r.req.links.slice(0, 3).map((u) => `[link](${u})`).join(" · ");
+              if (r.work_item) {
+                lines.push(`- **Work item:** \`${clip(r.work_item.key, 60)}\`${r.work_item.says ? ` — ${clip(r.work_item.says, 240)}` : ""}`);
+                if (Array.isArray(r.work_item.links) && r.work_item.links.length) {
+                  const links = r.work_item.links.slice(0, 3).map((u) => `[link](${u})`).join(" · ");
                   lines.push(`- **Links:** ${links}`);
                 }
               }

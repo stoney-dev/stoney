@@ -1,18 +1,8 @@
+// packages/runner/src/contract.ts
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
 import { interpolate } from "./env.js";
-
-/**
- * Work item mapping.
- * ✅ Required for every scenario (enforced in CLI): req.issue must be a Jira key.
- */
-export type WorkItem = {
-  issue: string; // e.g. "KAN-123"
-  // Optional human context (never required by enforcement)
-  text?: string;
-  links?: string[];
-};
 
 export type HttpStep = {
   method: string;
@@ -64,43 +54,34 @@ export type Expectation = {
 };
 
 export type Step =
-  | { http: HttpStep; expect?: Expectation }
-  | { exec: ExecStep; expect?: Expectation }
-  | { sql: SqlStep; expect?: Expectation };
+  | { http: HttpStep; then?: Expectation }
+  | { exec: ExecStep; then?: Expectation }
+  | { sql: SqlStep; then?: Expectation };
 
-export type Scenario = {
+export type Check = {
   id: string;
 
-  /**
-   * Work item mapping for this scenario.
-   * May be inherited from contract.req and overridden at scenario-level.
-   */
-  req?: WorkItem;
+  // ✅ Required (enforced by CLI when --require-jira is on)
+  work_item: string;
 
-  steps?: Step[];
+  // Optional context for humans
+  says?: string;
+  links?: string[];
 
-  // legacy support (still ok to keep, it doesn’t involve Jira):
-  http?: HttpStep;
-  exec?: ExecStep;
-  sql?: SqlStep;
-  expect?: Expectation;
+  // ✅ Required
+  do: Step[];
 };
 
 export type Contract = {
   name: string;
-
-  /**
-   * Optional default work item for all scenarios in this contract.
-   * Scenario-level req overrides.
-   */
-  req?: WorkItem;
-
-  scenarios: Scenario[];
+  description?: string;
+  checks: Check[];
 };
 
 export type SuiteFileV1 = {
   version: 1;
-  suite: string;
+  feature: string;
+  description?: string;
   contracts: Contract[];
 };
 
@@ -129,44 +110,12 @@ function parseFile(abs: string): unknown {
   fail(`Unsupported file type: ${abs}`);
 }
 
-function parseReq(raw: any): WorkItem | undefined {
-  if (!isObj(raw)) return undefined;
-
-  const issue = asString(raw.issue).trim() || "";
-  const text = asString(raw.text).trim() || undefined;
-  const links = asStringArray(raw.links);
-
-  // allow ${ENV} interpolation
-  const out: any = {};
-  if (issue) out.issue = issue;
-  if (text) out.text = text;
-  if (links) out.links = links;
-
-  return Object.keys(out).length ? (interpolate(out) as any) : undefined;
-}
-
-/**
- * Merge rule:
- * - base first (contract.req), scenario overrides.
- * - arrays replace (not concat).
- */
-function mergeReq(base?: WorkItem, override?: WorkItem): WorkItem | undefined {
-  if (!base && !override) return undefined;
-  const out: WorkItem = { ...(base || ({} as any)) } as any;
-
-  if (override?.issue) out.issue = override.issue;
-  if (override?.text) out.text = override.text;
-  if (override?.links) out.links = override.links;
-
-  return out.issue ? out : undefined;
-}
-
-function parseHttp(rawHttp: any, id: string): HttpStep {
-  if (!isObj(rawHttp)) fail(`Scenario ${id}: http must be object.`);
+function parseHttp(rawHttp: any, checkId: string): HttpStep {
+  if (!isObj(rawHttp)) fail(`Check ${checkId}: http must be object.`);
   const method = asString(rawHttp.method || "").trim().toUpperCase();
   const pth = asString(rawHttp.path || "").trim();
-  if (!method) fail(`Scenario ${id}: http.method is required.`);
-  if (!pth.startsWith("/")) fail(`Scenario ${id}: http.path must start with "/".`);
+  if (!method) fail(`Check ${checkId}: http.method is required.`);
+  if (!pth.startsWith("/")) fail(`Check ${checkId}: http.path must start with "/".`);
 
   return {
     method,
@@ -177,10 +126,10 @@ function parseHttp(rawHttp: any, id: string): HttpStep {
   };
 }
 
-function parseExec(rawExec: any, id: string): ExecStep {
-  if (!isObj(rawExec)) fail(`Scenario ${id}: exec must be object.`);
+function parseExec(rawExec: any, checkId: string): ExecStep {
+  if (!isObj(rawExec)) fail(`Check ${checkId}: exec must be object.`);
   const run = asString(rawExec.run || "").trim();
-  if (!run) fail(`Scenario ${id}: exec.run is required.`);
+  if (!run) fail(`Check ${checkId}: exec.run is required.`);
 
   return {
     run: String(interpolate(run)),
@@ -192,14 +141,14 @@ function parseExec(rawExec: any, id: string): ExecStep {
   };
 }
 
-function parseSql(rawSql: any, id: string): SqlStep {
-  if (!isObj(rawSql)) fail(`Scenario ${id}: sql must be object.`);
+function parseSql(rawSql: any, checkId: string): SqlStep {
+  if (!isObj(rawSql)) fail(`Check ${checkId}: sql must be object.`);
   const driver = asString(rawSql.driver || "").trim();
-  if (driver !== "postgres") fail(`Scenario ${id}: sql.driver must be "postgres".`);
+  if (driver !== "postgres") fail(`Check ${checkId}: sql.driver must be "postgres".`);
   const url_env = asString(rawSql.url_env || "").trim();
   const query = asString(rawSql.query || "").trim();
-  if (!url_env) fail(`Scenario ${id}: sql.url_env is required.`);
-  if (!query) fail(`Scenario ${id}: sql.query is required.`);
+  if (!url_env) fail(`Check ${checkId}: sql.url_env is required.`);
+  if (!query) fail(`Check ${checkId}: sql.query is required.`);
 
   return {
     driver: "postgres",
@@ -209,65 +158,86 @@ function parseSql(rawSql: any, id: string): SqlStep {
   };
 }
 
-function normalizeScenario(raw: any, contractReq?: WorkItem): Scenario {
-  if (!isObj(raw)) fail(`Scenario must be an object.`);
+function parseStep(st: any, checkId: string, i: number): Step {
+  if (!isObj(st)) fail(`Check ${checkId}: do[${i}] must be object.`);
+
+  const then = isObj(st.then) ? (interpolate(st.then) as any) : undefined;
+
+  if (isObj(st.http)) return { http: parseHttp(st.http, checkId), then };
+  if (isObj(st.exec)) return { exec: parseExec(st.exec, checkId), then };
+  if (isObj(st.sql)) return { sql: parseSql(st.sql, checkId), then };
+
+  fail(`Check ${checkId}: do[${i}] must include one of {http|exec|sql}.`);
+}
+
+function parseCheck(raw: any): Check {
+  if (!isObj(raw)) fail(`Check must be an object.`);
   const id = asString(raw.id || "").trim();
-  if (!id) fail(`Scenario id required.`);
+  if (!id) fail(`Check id required.`);
 
-  const scenarioReq = mergeReq(contractReq, parseReq(raw.req));
-  const expect = isObj(raw.expect) ? (interpolate(raw.expect) as any) : undefined;
+  const work_item = asString(raw.work_item || "").trim();
+  if (!work_item) fail(`Check ${id}: work_item is required (e.g. "KAN-123").`);
 
-  // steps mode
-  if (Array.isArray(raw.steps)) {
-    const steps: Step[] = raw.steps.map((st: any, i: number) => {
-      if (!isObj(st)) fail(`Scenario ${id}: steps[${i}] must be object.`);
-      const exp = isObj(st.expect) ? (interpolate(st.expect) as any) : undefined;
+  const says = asString(raw.says).trim() || undefined;
+  const links = asStringArray(raw.links);
 
-      if (isObj(st.http)) return { http: parseHttp(st.http, id), expect: exp };
-      if (isObj(st.exec)) return { exec: parseExec(st.exec, id), expect: exp };
-      if (isObj(st.sql)) return { sql: parseSql(st.sql, id), expect: exp };
-
-      fail(`Scenario ${id}: steps[${i}] must include one of {http|exec|sql}.`);
-    });
-
-    return { id, req: scenarioReq, steps };
+  if (!Array.isArray(raw.do) || raw.do.length === 0) {
+    fail(`Check ${id}: do must be a non-empty array.`);
   }
 
-  // legacy mode (single step)
-  if (isObj(raw.http)) return { id, req: scenarioReq, steps: [{ http: parseHttp(raw.http, id), expect }] };
-  if (isObj(raw.exec)) return { id, req: scenarioReq, steps: [{ exec: parseExec(raw.exec, id), expect }] };
-  if (isObj(raw.sql)) return { id, req: scenarioReq, steps: [{ sql: parseSql(raw.sql, id), expect }] };
+  const steps: Step[] = raw.do.map((st: any, i: number) => parseStep(st, id, i));
 
-  fail(`Scenario ${id}: must contain steps[] or one of {http|exec|sql}.`);
+  // allow ${ENV} interpolation across the whole check metadata too
+  const out: any = { id, work_item, do: steps };
+  if (says) out.says = says;
+  if (links) out.links = links;
+
+  return interpolate(out) as any;
 }
 
 export function loadSuite(filePath: string): SuiteFileV1 {
   const abs = path.resolve(process.cwd(), filePath);
-  if (!fs.existsSync(abs)) fail(`Suite file not found: ${abs}`);
+  if (!fs.existsSync(abs)) fail(`Contract file not found: ${abs}`);
 
   const data = parseFile(abs);
-  if (!isObj(data)) fail("Suite file must be an object.");
+  if (!isObj(data)) fail("Contract file must be an object.");
 
   if (data.version !== 1) fail(`Unsupported version: ${String(data.version)} (expected 1)`);
-  if (typeof data.suite !== "string" || !data.suite.trim()) fail("suite must be a string.");
-  if (!Array.isArray(data.contracts) || data.contracts.length === 0) fail("contracts must be a non-empty array.");
+
+  const feature = asString(data.feature || "").trim();
+  if (!feature) fail(`feature must be a non-empty string.`);
+
+  const description = asString(data.description).trim() || undefined;
+
+  if (!Array.isArray(data.contracts) || data.contracts.length === 0) {
+    fail("contracts must be a non-empty array.");
+  }
 
   const contracts: Contract[] = data.contracts.map((c: any, ci: number) => {
     if (!isObj(c)) fail(`contracts[${ci}] must be an object.`);
-    if (typeof c.name !== "string" || !c.name.trim()) fail(`contracts[${ci}].name must string.`);
-    if (!Array.isArray(c.scenarios) || c.scenarios.length === 0) fail(`contracts[${ci}].scenarios must be non-empty array.`);
+    const name = asString(c.name || "").trim();
+    if (!name) fail(`contracts[${ci}].name must be a non-empty string.`);
 
-    const contractReq = parseReq(c.req);
-    const scenarios: Scenario[] = c.scenarios.map((s: any) => normalizeScenario(s, contractReq));
+    const desc = asString(c.description).trim() || undefined;
 
-    const seen = new Set<string>();
-    for (const s of scenarios) {
-      if (seen.has(s.id)) fail(`Duplicate scenario id in contract "${c.name}": ${s.id}`);
-      seen.add(s.id);
+    if (!Array.isArray(c.checks) || c.checks.length === 0) {
+      fail(`contracts[${ci}].checks must be a non-empty array.`);
     }
 
-    return { name: c.name, req: contractReq, scenarios };
+    const checks: Check[] = c.checks.map((chk: any) => parseCheck(chk));
+
+    const seen = new Set<string>();
+    for (const chk of checks) {
+      if (seen.has(chk.id)) fail(`Duplicate check id in contract "${name}": ${chk.id}`);
+      seen.add(chk.id);
+    }
+
+    const out: Contract = { name, checks };
+    if (desc) out.description = String(interpolate(desc));
+    return out;
   });
 
-  return { version: 1, suite: data.suite, contracts };
+  const suite: SuiteFileV1 = { version: 1, feature, contracts };
+  if (description) suite.description = String(interpolate(description));
+  return suite;
 }
