@@ -8,7 +8,6 @@ import { loadSuite, type SuiteFileV1, type Step, type Check } from "./contract.j
 import { runHttpStep } from "./http.js";
 import { runExecStep } from "./exec.js";
 import { runSqlStep } from "./sql.js";
-import { jiraIssueExists } from "./jira.js";
 import type { ScenarioResult, StepResult } from "./types.js";
 
 const program = new Command();
@@ -34,20 +33,33 @@ function didUserPassFlag(argv: string[], flag: string): boolean {
   return argv.includes(flag);
 }
 
-async function runOneStep(baseUrl: string | undefined, st: Step): Promise<StepResult> {
+function fatal(msg: string, code = 2): never {
+  console.error(msg);
+  process.exit(code);
+}
+
+function safeRegex(pat: string): RegExp | null {
+  try {
+    return new RegExp(pat);
+  } catch {
+    return null;
+  }
+}
+
+async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
   if ("http" in st) {
     if (!baseUrl) {
       return {
         ok: false,
         kind: "http",
         title: `http ${st.http.method} ${st.http.path}`,
-        notes: ["Missing base URL. Provide --base-url or set STONEY_BASE_URL."],
+        notes: ["Missing base_url."],
       };
     }
-    return runHttpStep(baseUrl, st.http, st.then);
+    return runHttpStep(baseUrl, st.http, st.expect);
   }
-  if ("exec" in st) return runExecStep(st.exec, st.then);
-  if ("sql" in st) return runSqlStep(st.sql, st.then);
+  if ("exec" in st) return runExecStep(st.exec, st.expect);
+  if ("sql" in st) return runSqlStep(st.sql, st.expect);
   return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type."] };
 }
 
@@ -59,20 +71,38 @@ program
   .option("--only-contract <name>", "Run only one contract by name")
   .option("--only-check <id>", "Run only one check id")
   .option("--fail-fast", "Stop on first failure", false)
-  .option("--require-jira", "Require work_item and verify it exists in Jira (read-only)", false)
+  .option("--require-work-item", "Require work_item on every check (no integrations)", false)
+  .option("--work-item-pattern <regex>", "Optional regex that work_item must match (e.g. '^KAN-\\\\d+$')")
   .action(async (opts: any) => {
-    const baseUrl = opts.baseUrl || process.env.STONEY_BASE_URL;
+    const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
     const argv = process.argv.slice(2);
 
-    const requireJira = didUserPassFlag(argv, "--require-jira") ? Boolean(opts.requireJira) : envFlag("STONEY_REQUIRE_JIRA");
+    // Precedence:
+    // - If user passed --require-work-item explicitly, honor that.
+    // - Else fall back to STONEY_REQUIRE_WORK_ITEM.
+    const userSpecified = didUserPassFlag(argv, "--require-work-item");
+    const requireWorkItem = userSpecified ? Boolean(opts.requireWorkItem) : envFlag("STONEY_REQUIRE_WORK_ITEM");
+
+    // Pattern:
+    // - CLI flag wins
+    // - else env
+    const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
+    const pattern = patternRaw ? safeRegex(patternRaw) : null;
+
+    if (patternRaw && !pattern) {
+      fatal(`Invalid --work-item-pattern regex: ${patternRaw}`);
+    }
 
     const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
-    const suites: SuiteFileV1[] = [];
-    for (const p of suitePaths) suites.push(loadSuite(p));
+    if (!suitePaths.length) fatal(`No contract files matched: ${opts.suite}`);
 
-    if (!suites.length) {
-      console.error(`No contract files matched: ${opts.suite}`);
-      process.exit(2);
+    const suites: SuiteFileV1[] = [];
+    for (const p of suitePaths) {
+      try {
+        suites.push(loadSuite(p));
+      } catch (e: any) {
+        fatal(`Contract parse error in "${p}": ${e?.message || String(e)}`);
+      }
     }
 
     let failed = 0;
@@ -80,23 +110,30 @@ program
     const results: Array<{ feature: string; contract: string } & ScenarioResult> = [];
 
     console.log(`\n🪨 Stoney run`);
-    if (baseUrl) console.log(`Base URL: ${baseUrl}`);
+    console.log(`base_url: ${baseUrl ? baseUrl : "(not set)"}`);
     console.log(`Files loaded: ${suites.length}`);
-    if (requireJira) console.log(`Work items required: ON (Jira exists check)`);
+    if (requireWorkItem) console.log(`work_item required: ON${pattern ? ` (pattern: ${patternRaw})` : ""}`);
+    if (opts.failFast) console.log(`fail_fast: ON`);
     console.log("");
 
+    let shouldStop = false;
+
     for (const suite of suites) {
+      if (shouldStop) break;
+
       console.log(`Feature: ${suite.feature}`);
       if (suite.description) console.log(`  ${suite.description}`);
       console.log("");
 
       for (const contract of suite.contracts) {
+        if (shouldStop) break;
         if (opts.onlyContract && contract.name !== opts.onlyContract) continue;
 
         console.log(`Contract: ${contract.name}`);
         if (contract.description) console.log(`  ${contract.description}`);
 
         for (const check of contract.checks as unknown as Check[]) {
+          if (shouldStop) break;
           if (opts.onlyCheck && check.id !== opts.onlyCheck) continue;
 
           total++;
@@ -105,23 +142,15 @@ program
           const notes: string[] = [];
           const stepResults: StepResult[] = [];
 
-          // ✅ enforce Jira work item + existence
-          if (requireJira) {
+          // v1 policy: enforce presence (and optional pattern) only
+          if (requireWorkItem) {
             const key = String(check.work_item || "").trim();
             if (!key) {
               checkOk = false;
               notes.push(`Missing work_item (required). Add: work_item: "KAN-123".`);
-            } else {
-              try {
-                const chk = await jiraIssueExists(key);
-                if (!chk.ok) {
-                  checkOk = false;
-                  notes.push(`Jira issue not found / not accessible: ${key} — ${chk.message || `status=${chk.status}`}`);
-                }
-              } catch (e: any) {
-                checkOk = false;
-                notes.push(`Jira validation error for ${key}: ${e?.message || String(e)}`);
-              }
+            } else if (pattern && !pattern.test(key)) {
+              checkOk = false;
+              notes.push(`work_item did not match required pattern: ${patternRaw}`);
             }
           }
 
@@ -129,12 +158,13 @@ program
           let url: string | undefined;
           let status: number | undefined;
 
+          // If policy already failed, still record result but do not run steps.
           if (checkOk) {
-            if (!Array.isArray(check.do) || check.do.length === 0) {
+            if (!Array.isArray(check.steps) || check.steps.length === 0) {
               checkOk = false;
-              notes.push("Check has no steps (do[]).");
+              notes.push("Check has no steps (steps[]).");
             } else {
-              for (const st of check.do) {
+              for (const st of check.steps) {
                 const r = await runOneStep(baseUrl, st);
                 stepResults.push(r);
 
@@ -155,11 +185,9 @@ program
           const row: ScenarioResult = {
             id: check.id,
             ok: checkOk,
-            work_item: {
-              key: check.work_item,
-              says: check.says,
-              links: check.links,
-            },
+            work_item: check.work_item
+              ? { key: check.work_item, says: check.says, links: check.links }
+              : undefined,
             method,
             url,
             status,
@@ -182,22 +210,26 @@ program
               for (const n of sr.notes) console.log(`     - ${n}`);
             }
 
-            if (opts.failFast) break;
+            if (opts.failFast) {
+              console.log(`\n⛔ fail-fast enabled — stopping after first failure.\n`);
+              shouldStop = true;
+            }
           }
         }
 
         console.log("");
-        if (opts.failFast && failed > 0) break;
       }
-
-      if (opts.failFast && failed > 0) break;
     }
 
+    const passed = Math.max(0, total - failed);
+
     const report = {
-      baseUrl: baseUrl || "",
+      report_version: 1 as const,
+      contract_version: 1 as const,
+      base_url: baseUrl,
       total,
       failed,
-      passed: total - failed,
+      passed,
       ok: failed === 0,
       results,
     };

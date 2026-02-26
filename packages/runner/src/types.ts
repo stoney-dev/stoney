@@ -17,7 +17,7 @@ export type HttpStepResult = StepResultBase & {
 
 export type ExecStepResult = StepResultBase & {
   kind: "exec";
-  exitCode?: number | null;
+  exit_code?: number | null;
   signal?: string;
   duration_ms?: number;
   stdout?: string;
@@ -41,6 +41,7 @@ export type ScenarioResult = {
   id: string;
   ok: boolean;
 
+  // optional unless require_work_item is enabled
   work_item?: WorkItemRef;
 
   method?: string;

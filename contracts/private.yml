@@ -1,21 +1,19 @@
 version: 1
-suite: private
+feature: private
 
 contracts:
   - name: private_ping
-    scenarios:
+    checks:
       - id: private_requires_token
-        req:
-          issue: "KAN-101"
-          ac: ["AC-1"]
-          text: "Private endpoints require token"
-        steps:
+        work_item: "KAN-101"
+        says: "Private endpoints require token (AC-1)"
+        do:
           - http:
               method: GET
               path: /private/ping
               headers:
                 Authorization: "Bearer ${STONEY_TOKEN}"
-            expect:
+            then:
               status: 200
               json:
                 private: true

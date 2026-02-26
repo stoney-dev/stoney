@@ -1,3 +1,4 @@
+// packages/runner/src/sql.ts
 import pg from "pg";
 import type { SqlStep, Expectation } from "./contract.js";
 import type { StepResult } from "./types.js";
@@ -7,16 +8,13 @@ const { Client } = pg;
 
 function isProbablyWriteSql(q: string): boolean {
   const s = q.replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "").trim().toLowerCase();
-  // allow WITH ... SELECT patterns by checking first keyword and some common write keywords anywhere
   const write = /\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|vacuum|analyze)\b/;
   return write.test(s);
 }
 
 function isMultiStatement(q: string): boolean {
-  // very simple heuristic: multiple semicolons with non-whitespace after one
   const s = q.trim();
   if (!s.includes(";")) return false;
-  // allow a single trailing semicolon
   const normalized = s.endsWith(";") ? s.slice(0, -1) : s;
   return normalized.includes(";");
 }
@@ -38,7 +36,6 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
   const timeoutMs =
     typeof step.timeout_ms === "number" ? step.timeout_ms : Number(process.env.STONEY_TIMEOUT_MS || 15000);
 
-  // ✅ Safe-by-default guards (fast, tiny, saves you later)
   const allowWrite = String(process.env.STONEY_ALLOW_WRITE_SQL || "").toLowerCase() === "true";
   const allowMulti = String(process.env.STONEY_ALLOW_MULTI_SQL || "").toLowerCase() === "true";
 
@@ -60,19 +57,24 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
     };
   }
 
-  const client = new Client({
-    connectionString: url,
-    // pg also supports query_timeout, but statement_timeout is more reliable since it’s enforced by server
-  });
+  const client = new Client({ connectionString: url });
 
   try {
     await client.connect();
 
-    // ✅ Enforce timeout at DB level (this is the “real” timeout)
     // statement_timeout is in ms
-    await client.query(`SET statement_timeout = ${Math.max(1, Math.floor(timeoutMs))};`);
+    const ms = Math.max(1, Math.floor(Number.isFinite(timeoutMs) ? timeoutMs : 15000));
+    await client.query(`SET statement_timeout = ${ms};`);
+
+    // ✅ Extra safety: run queries as read-only unless explicitly allowed
+    if (!allowWrite) {
+      await client.query("BEGIN READ ONLY;");
+    } else {
+      await client.query("BEGIN;");
+    }
 
     const res = await client.query(step.query);
+    await client.query("COMMIT;");
 
     let ok = true;
     const exp = expect || {};
@@ -101,6 +103,9 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
       rows: typeof res.rowCount === "number" ? res.rowCount : undefined,
     };
   } catch (e: any) {
+    try {
+      await client.query("ROLLBACK;");
+    } catch {}
     return { ok: false, kind: "sql", title, notes: [`SQL error: ${e?.message || String(e)}`] };
   } finally {
     await client.end().catch(() => {});

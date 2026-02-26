@@ -1,3 +1,4 @@
+// packages/runner/src/http.ts
 import { deepSubsetMatch } from "./match.js";
 import type { HttpStep, Expectation } from "./contract.js";
 import type { StepResult } from "./types.js";
@@ -25,6 +26,11 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
   }
 }
 
+function envNum(name: string, fallback: number): number {
+  const raw = Number(process.env[name]);
+  return Number.isFinite(raw) && raw >= 0 ? raw : fallback;
+}
+
 export async function runHttpStep(baseUrl: string, step: HttpStep, expect?: Expectation): Promise<StepResult> {
   const method = step.method.toUpperCase();
   const url = withQuery(joinUrl(baseUrl, step.path), step.query);
@@ -41,8 +47,16 @@ export async function runHttpStep(baseUrl: string, step: HttpStep, expect?: Expe
     }
   }
 
-  const timeoutMs = Number(process.env.STONEY_TIMEOUT_MS || 15000);
-  const retries = Number(process.env.STONEY_RETRIES || 2);
+  // ✅ Allow per-step override; fallback to env; fallback to defaults.
+  const timeoutMs =
+    typeof step.timeout_ms === "number" && Number.isFinite(step.timeout_ms) && step.timeout_ms > 0
+      ? step.timeout_ms
+      : envNum("STONEY_TIMEOUT_MS", 15000);
+
+  const retries =
+    typeof step.retries === "number" && Number.isFinite(step.retries) && step.retries >= 0
+      ? step.retries
+      : envNum("STONEY_RETRIES", 2);
 
   let lastErr: any;
 

@@ -56,20 +56,24 @@ Create `contracts/smoke.yml`:
 
 ```yaml
 version: 1
-suite: core
+feature: core
+description: "Smoke checks for the environment"
 
 contracts:
   - name: health
-    scenarios:
+    description: "Health endpoint must always respond correctly."
+    checks:
       - id: health_ok
-        req:
-          text: "Health endpoint must respond with 200 OK"
+        work_item: "KAN-123" # optional unless require_work_item is enabled
+        says: "GET /health returns 200 with ok:true"
         steps:
           - http:
               method: GET
               path: /health
             expect:
               status: 200
+              json:
+                ok: true
 ```
 
 ---
@@ -100,6 +104,17 @@ jobs:
           base_url: ${{ secrets.STONEY_BASE_URL }}
           suite: contracts/*.yml
           comment_pr: "true"
+
+          # Optional execution control:
+          # fail_fast: "true"
+
+          # Optional policy controls:
+          # require_work_item: "true"
+          # work_item_pattern: "^KAN-\\d+$"
+
+          # Optional integrations:
+          # db_url: ${{ secrets.STONEY_DB_URL }}
+          # token: ${{ secrets.STONEY_TOKEN }}
 ```
 
 ---
@@ -114,9 +129,30 @@ Add:
 
 - `STONEY_BASE_URL` → `https://staging.example.com`
 
+Optional (if needed by your contracts):
+
+- `STONEY_DB_URL`
+- `STONEY_TOKEN`
+
 Open a Pull Request.
 
-If the invariant breaks, the merge is blocked.
+If a contract fails, the merge is blocked.
+
+---
+
+# ⚡ Fail Fast
+
+By default, Stoney runs **all checks** and reports all failures in one run.
+
+If you prefer to stop immediately on the first failing check (faster CI, less noise), enable:
+
+```yaml
+fail_fast: "true"
+```
+
+When enabled:
+- Stoney stops after the first failing check (including missing/invalid `work_item` when required)
+- PR comment + report still include everything that ran up to that failure
 
 ---
 
@@ -125,13 +161,14 @@ If the invariant breaks, the merge is blocked.
 ## HTTP
 
 ```yaml
-- http:
-    method: GET
-    path: /health
-  expect:
-    status: 200
-    json:
-      ok: true
+steps:
+  - http:
+      method: GET
+      path: /health
+    expect:
+      status: 200
+      json:
+        ok: true
 ```
 
 Uses deep subset matching — extra fields don’t break your contract.
@@ -141,14 +178,15 @@ Uses deep subset matching — extra fields don’t break your contract.
 ## SQL (Postgres)
 
 ```yaml
-- sql:
-    driver: postgres
-    url_env: STONEY_DB_URL
-    query: "SELECT 1::int AS ok;"
-  expect:
-    rows: 1
-    equals:
-      ok: 1
+steps:
+  - sql:
+      driver: postgres
+      url_env: STONEY_DB_URL
+      query: "SELECT 1::int AS ok;"
+    expect:
+      rows: 1
+      equals:
+        ok: 1
 ```
 
 Safe-by-default:
@@ -162,12 +200,41 @@ Safe-by-default:
 ## Exec (CLI / Scripts)
 
 ```yaml
-- exec:
-    run: "node -v"
-  expect:
-    exit_code: 0
-    stdout_contains: "v"
+steps:
+  - exec:
+      run: "node -v"
+    expect:
+      exit_code: 0
+      stdout_contains: "v"
 ```
+
+---
+
+# 🧾 Work Items (Optional)
+
+Contracts may include a `work_item` for traceability:
+
+```yaml
+checks:
+  - id: ping_ok
+    work_item: "KAN-100"
+    says: "Ping endpoint works"
+    steps:
+      - http:
+          method: GET
+          path: /v1/ping
+        expect:
+          status: 200
+```
+
+You can enforce work items in CI:
+
+```yaml
+require_work_item: "true"
+work_item_pattern: "^KAN-\\d+$"
+```
+
+No external integrations required in v1.
 
 ---
 
@@ -201,9 +268,7 @@ Stoney executes wherever your runner lives.
 
 # 📖 Documentation
 
-Full documentation lives in:
-
-https://your-docs-site-url
+Documentation site coming soon.
 
 ---
 

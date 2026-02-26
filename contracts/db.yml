@@ -1,31 +1,27 @@
 version: 1
-suite: db
+feature: db
 
 contracts:
   - name: db_invariants
-    scenarios:
+    checks:
       - id: users_table_exists
-        req:
-          issue: "KAN-102"
-          ac: ["AC-1"]
-          text: "Users table exists"
-        steps:
+        work_item: "KAN-102"
+        says: "Users table exists (AC-1)"
+        do:
           - sql:
               driver: postgres
               url_env: STONEY_DB_URL
               query: |
                 SELECT to_regclass('public.users') AS table_name;
-            expect:
+            then:
               rows: 1
               equals:
                 table_name: users
 
       - id: no_failed_jobs
-        req:
-          issue: "KAN-102"
-          ac: ["AC-2"]
-          text: "No failed jobs"
-        steps:
+        work_item: "KAN-102"
+        says: "No failed jobs (AC-2)"
+        do:
           - sql:
               driver: postgres
               url_env: STONEY_DB_URL
@@ -33,7 +29,7 @@ contracts:
                 SELECT COUNT(*)::int AS failed
                 FROM jobs
                 WHERE status = 'failed';
-            expect:
+            then:
               rows: 1
               equals:
                 failed: 0

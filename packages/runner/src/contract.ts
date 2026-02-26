@@ -10,6 +10,9 @@ export type HttpStep = {
   headers?: Record<string, string>;
   query?: Record<string, string | number | boolean>;
   body?: unknown;
+
+  timeout_ms?: number;
+  retries?: number;
 };
 
 export type ExecStep = {
@@ -23,7 +26,7 @@ export type ExecStep = {
 
 export type SqlStep = {
   driver: "postgres";
-  url_env: string; // env var holding connection string, e.g. STONEY_DB_URL
+  url_env: string;
   query: string;
   timeout_ms?: number;
 };
@@ -54,22 +57,21 @@ export type Expectation = {
 };
 
 export type Step =
-  | { http: HttpStep; then?: Expectation }
-  | { exec: ExecStep; then?: Expectation }
-  | { sql: SqlStep; then?: Expectation };
+  | { http: HttpStep; expect?: Expectation }
+  | { exec: ExecStep; expect?: Expectation }
+  | { sql: SqlStep; expect?: Expectation };
 
 export type Check = {
   id: string;
 
-  // ✅ Required (enforced by CLI when --require-jira is on)
-  work_item: string;
+  // v1: optional; enforcement is controlled by CLI (--require-work-item) / env
+  work_item?: string;
 
-  // Optional context for humans
   says?: string;
   links?: string[];
 
-  // ✅ Required
-  do: Step[];
+  // Required
+  steps: Step[];
 };
 
 export type Contract = {
@@ -103,6 +105,11 @@ function asStringArray(x: unknown): string[] | undefined {
   return out.length ? out : undefined;
 }
 
+function asNumberOrUndef(x: unknown): number | undefined {
+  if (typeof x === "number" && Number.isFinite(x)) return x;
+  return undefined;
+}
+
 function parseFile(abs: string): unknown {
   const raw = fs.readFileSync(abs, "utf8");
   if (abs.endsWith(".yml") || abs.endsWith(".yaml")) return yaml.load(raw);
@@ -117,12 +124,17 @@ function parseHttp(rawHttp: any, checkId: string): HttpStep {
   if (!method) fail(`Check ${checkId}: http.method is required.`);
   if (!pth.startsWith("/")) fail(`Check ${checkId}: http.path must start with "/".`);
 
+  const timeout_ms = asNumberOrUndef(rawHttp.timeout_ms);
+  const retries = asNumberOrUndef(rawHttp.retries);
+
   return {
     method,
     path: String(interpolate(pth)),
     headers: isObj(rawHttp.headers) ? (interpolate(rawHttp.headers) as any) : undefined,
     query: isObj(rawHttp.query) ? (interpolate(rawHttp.query) as any) : undefined,
     body: interpolate(rawHttp.body),
+    timeout_ms,
+    retries,
   };
 }
 
@@ -159,15 +171,15 @@ function parseSql(rawSql: any, checkId: string): SqlStep {
 }
 
 function parseStep(st: any, checkId: string, i: number): Step {
-  if (!isObj(st)) fail(`Check ${checkId}: do[${i}] must be object.`);
+  if (!isObj(st)) fail(`Check ${checkId}: steps[${i}] must be object.`);
 
-  const then = isObj(st.then) ? (interpolate(st.then) as any) : undefined;
+  const expect = isObj(st.expect) ? (interpolate(st.expect) as any) : undefined;
 
-  if (isObj(st.http)) return { http: parseHttp(st.http, checkId), then };
-  if (isObj(st.exec)) return { exec: parseExec(st.exec, checkId), then };
-  if (isObj(st.sql)) return { sql: parseSql(st.sql, checkId), then };
+  if (isObj(st.http)) return { http: parseHttp(st.http, checkId), expect };
+  if (isObj(st.exec)) return { exec: parseExec(st.exec, checkId), expect };
+  if (isObj(st.sql)) return { sql: parseSql(st.sql, checkId), expect };
 
-  fail(`Check ${checkId}: do[${i}] must include one of {http|exec|sql}.`);
+  fail(`Check ${checkId}: steps[${i}] must include one of {http|exec|sql}.`);
 }
 
 function parseCheck(raw: any): Check {
@@ -175,20 +187,18 @@ function parseCheck(raw: any): Check {
   const id = asString(raw.id || "").trim();
   if (!id) fail(`Check id required.`);
 
-  const work_item = asString(raw.work_item || "").trim();
-  if (!work_item) fail(`Check ${id}: work_item is required (e.g. "KAN-123").`);
-
+  const work_item = asString(raw.work_item || "").trim() || undefined;
   const says = asString(raw.says).trim() || undefined;
   const links = asStringArray(raw.links);
 
-  if (!Array.isArray(raw.do) || raw.do.length === 0) {
-    fail(`Check ${id}: do must be a non-empty array.`);
+  if (!Array.isArray(raw.steps) || raw.steps.length === 0) {
+    fail(`Check ${id}: steps must be a non-empty array.`);
   }
 
-  const steps: Step[] = raw.do.map((st: any, i: number) => parseStep(st, id, i));
+  const steps: Step[] = raw.steps.map((st: any, i: number) => parseStep(st, id, i));
 
-  // allow ${ENV} interpolation across the whole check metadata too
-  const out: any = { id, work_item, do: steps };
+  const out: any = { id, steps };
+  if (work_item) out.work_item = work_item;
   if (says) out.says = says;
   if (links) out.links = links;
 

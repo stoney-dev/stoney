@@ -29,6 +29,11 @@ inputs:
     required: false
     default: "2"
 
+  fail_fast:
+    description: "Stop on first failing check (true/false)."
+    required: false
+    default: "false"
+
   report:
     description: "Report file path"
     required: false
@@ -49,26 +54,17 @@ inputs:
     required: false
     default: "true"
 
-  # ✅ Single enforcement toggle (requires + validates existence)
-  require_jira:
-    description: "Require work_item and verify it exists in Jira (true/false)"
+  require_work_item:
+    description: "Require work_item on every check (true/false). No external integrations."
     required: false
     default: "false"
 
-  # Optional DB invariants
-  db_url:
-    description: "Postgres connection string for SQL checks (STONEY_DB_URL)"
+  work_item_pattern:
+    description: "Optional regex that work_item must match (e.g. ^KAN-\\d+$)"
     required: false
 
-  # Jira auth (required only if require_jira=true)
-  jira_base_url:
-    description: "Jira base URL (e.g. https://yourcompany.atlassian.net)"
-    required: false
-  jira_email:
-    description: "Jira email"
-    required: false
-  jira_api_token:
-    description: "Jira API token"
+  db_url:
+    description: "Postgres connection string for SQL checks (STONEY_DB_URL)"
     required: false
 
 runs:
@@ -87,21 +83,23 @@ runs:
         STONEY_TIMEOUT_MS: ${{ inputs.timeout_ms }}
         STONEY_RETRIES: ${{ inputs.retries }}
         STONEY_DB_URL: ${{ inputs.db_url }}
-
-        JIRA_BASE_URL: ${{ inputs.jira_base_url }}
-        JIRA_EMAIL: ${{ inputs.jira_email }}
-        JIRA_API_TOKEN: ${{ inputs.jira_api_token }}
+        STONEY_REQUIRE_WORK_ITEM: ${{ inputs.require_work_item }}
+        STONEY_WORK_ITEM_PATTERN: ${{ inputs.work_item_pattern }}
       run: |
         set -euo pipefail
 
         ARGS=()
 
-        if [ "${{ inputs.require_jira }}" = "true" ]; then
-          if [ -z "${{ inputs.jira_base_url }}" ] || [ -z "${{ inputs.jira_email }}" ] || [ -z "${{ inputs.jira_api_token }}" ]; then
-            echo "require_jira=true but jira_base_url/jira_email/jira_api_token missing"
-            exit 2
-          fi
-          ARGS+=( --require-jira )
+        if [ "${{ inputs.fail_fast }}" = "true" ]; then
+          ARGS+=( --fail-fast )
+        fi
+
+        if [ "${{ inputs.require_work_item }}" = "true" ]; then
+          ARGS+=( --require-work-item )
+        fi
+
+        if [ -n "${{ inputs.work_item_pattern }}" ]; then
+          ARGS+=( --work-item-pattern "${{ inputs.work_item_pattern }}" )
         fi
 
         node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
@@ -153,7 +151,7 @@ runs:
           const total = report.total ?? (Array.isArray(report.results) ? report.results.length : 0);
           const failed = report.failed ?? (Array.isArray(report.results) ? report.results.filter((r) => !r.ok).length : 0);
           const passed = report.passed ?? Math.max(0, total - failed);
-          const baseUrl = report.baseUrl ?? "";
+          const baseUrl = report.base_url ?? "";
           const ok = !!report.ok;
 
           const bad = (report.results || []).filter((r) => !r.ok).slice(0, 10);

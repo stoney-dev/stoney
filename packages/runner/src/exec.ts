@@ -1,3 +1,4 @@
+// packages/runner/src/exec.ts
 import { spawn } from "node:child_process";
 import path from "node:path";
 import type { ExecStep, Expectation } from "./contract.js";
@@ -38,17 +39,15 @@ export async function runExecStep(step: ExecStep, expect?: Expectation): Promise
     typeof step.timeout_ms === "number" ? step.timeout_ms : Number(process.env.STONEY_TIMEOUT_MS || 15000);
   const retries = typeof step.retries === "number" ? step.retries : 0;
   const cwd = step.cwd ? path.resolve(process.cwd(), step.cwd) : process.cwd();
-
-  // Allow per-step output truncation; else default.
-  const maxOut = typeof (step as any).max_output_chars === "number" ? (step as any).max_output_chars : 8192;
+  const maxOut = typeof step.max_output_chars === "number" ? step.max_output_chars : 8192;
 
   let lastErr: any;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const started = Date.now();
-
       const res = await new Promise<ExecRunResult>((resolve, reject) => {
+        const started = Date.now();
+
         const child = spawn(step.run, {
           cwd,
           shell: true,
@@ -63,10 +62,8 @@ export async function runExecStep(step: ExecStep, expect?: Expectation): Promise
         child.stdout?.on("data", (d) => (stdout += d.toString()));
         child.stderr?.on("data", (d) => (stderr += d.toString()));
 
-        // Timeout
         const t = setTimeout(() => {
           timedOut = true;
-          // Try SIGTERM first to allow cleanup, then SIGKILL
           try {
             child.kill("SIGTERM");
           } catch {}
@@ -85,26 +82,17 @@ export async function runExecStep(step: ExecStep, expect?: Expectation): Promise
         child.on("close", (code, signal) => {
           clearTimeout(t);
           const durationMs = Date.now() - started;
-
-          if (timedOut) {
-            // Return a result instead of throwing so we can include partial output.
-            resolve({ code, signal, stdout, stderr, durationMs, timedOut: true });
-            return;
-          }
-
-          resolve({ code, signal, stdout, stderr, durationMs, timedOut: false });
+          resolve({ code, signal, stdout, stderr, durationMs, timedOut });
         });
       });
 
       const stdout = trunc(res.stdout, maxOut);
       const stderr = trunc(res.stderr, maxOut);
 
-      // -----------------------------
-      // Expectations
-      // -----------------------------
       let ok = true;
 
       const expectedCode = typeof expect?.exit_code === "number" ? expect.exit_code : 0;
+
       if (res.timedOut) {
         ok = false;
         notes.push(`Exec timeout after ${timeoutMs}ms.`);
@@ -113,14 +101,12 @@ export async function runExecStep(step: ExecStep, expect?: Expectation): Promise
         notes.push(`Expected exit_code ${expectedCode} but got ${res.code}.`);
       }
 
-      // Optional max duration
       const maxDuration = (expect as any)?.max_duration_ms;
       if (typeof maxDuration === "number" && res.durationMs > maxDuration) {
         ok = false;
         notes.push(`Expected max_duration_ms ${maxDuration} but took ${res.durationMs}ms.`);
       }
 
-      // stdout/stderr contains
       if (typeof expect?.stdout_contains === "string" && !res.stdout.includes(expect.stdout_contains)) {
         ok = false;
         notes.push(`Expected stdout to contain: "${expect.stdout_contains}"`);
@@ -130,19 +116,18 @@ export async function runExecStep(step: ExecStep, expect?: Expectation): Promise
         notes.push(`Expected stderr to contain: "${expect.stderr_contains}"`);
       }
 
-      // stdout/stderr NOT contains (extra power, optional)
       const stdoutNot = (expect as any)?.stdout_not_contains;
       if (typeof stdoutNot === "string" && res.stdout.includes(stdoutNot)) {
         ok = false;
         notes.push(`Expected stdout to NOT contain: "${stdoutNot}"`);
       }
+
       const stderrNot = (expect as any)?.stderr_not_contains;
       if (typeof stderrNot === "string" && res.stderr.includes(stderrNot)) {
         ok = false;
         notes.push(`Expected stderr to NOT contain: "${stderrNot}"`);
       }
 
-      // regex match (optional)
       const stdoutRegex = (expect as any)?.stdout_regex;
       if (typeof stdoutRegex === "string") {
         const re = safeRegex(stdoutRegex);
@@ -154,6 +139,7 @@ export async function runExecStep(step: ExecStep, expect?: Expectation): Promise
           notes.push(`Expected stdout to match regex: /${stdoutRegex}/`);
         }
       }
+
       const stderrRegex = (expect as any)?.stderr_regex;
       if (typeof stderrRegex === "string") {
         const re = safeRegex(stderrRegex);
@@ -166,30 +152,26 @@ export async function runExecStep(step: ExecStep, expect?: Expectation): Promise
         }
       }
 
-      // empty checks (optional)
       const stderrEmpty = (expect as any)?.stderr_empty;
       if (stderrEmpty === true && res.stderr.trim().length > 0) {
         ok = false;
         notes.push(`Expected stderr to be empty.`);
       }
+
       const stdoutEmpty = (expect as any)?.stdout_empty;
       if (stdoutEmpty === true && res.stdout.trim().length > 0) {
         ok = false;
         notes.push(`Expected stdout to be empty.`);
       }
 
-      const finished = Date.now();
-      const durationMs = finished - started;
-
-      // ✅ Return rich details so customers can debug in CI
       return {
         ok,
         kind: "exec",
         title,
         notes,
-        exitCode: res.code,
+        exit_code: res.code,
         signal: res.signal || undefined,
-        duration_ms: durationMs,
+        duration_ms: res.durationMs,
         stdout: stdout || undefined,
         stderr: stderr || undefined,
       };
