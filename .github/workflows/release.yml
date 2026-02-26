@@ -36,6 +36,18 @@ jobs:
       - name: Verify dist exists
         run: test -f packages/runner/dist/cli.cjs
 
+      - name: Verify dist matches source (required for release)
+        run: |
+          if ! git diff --quiet -- packages/runner/dist; then
+            echo ""
+            echo "❌ Refusing to release: packages/runner/dist differs from built output."
+            echo "Fix by updating dist on main BEFORE tagging."
+            echo ""
+            echo "Diff:"
+            git --no-pager diff -- packages/runner/dist
+            exit 1
+          fi
+
       - name: Create GitHub Release (attach runner dist)
         uses: softprops/action-gh-release@v2
         with:

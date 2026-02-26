@@ -32,3 +32,16 @@ jobs:
         run: |
           test -f packages/runner/dist/cli.cjs
           node packages/runner/dist/cli.cjs hello
+
+      - name: Ensure dist is committed (no drift)
+        run: |
+          if ! git diff --quiet -- packages/runner/dist; then
+            echo ""
+            echo "❌ packages/runner/dist is out of date."
+            echo "Run: pnpm -C packages/runner build"
+            echo "Then commit: git add packages/runner/dist"
+            echo ""
+            echo "Diff:"
+            git --no-pager diff -- packages/runner/dist
+            exit 1
+          fi

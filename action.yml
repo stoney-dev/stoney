@@ -88,6 +88,21 @@ runs:
       run: |
         set -euo pipefail
 
+        CLI="${{ github.action_path }}/packages/runner/dist/cli.cjs"
+        if [ ! -f "$CLI" ]; then
+          echo ""
+          echo "❌ Stoney action is missing built runner:"
+          echo "   $CLI"
+          echo ""
+          echo "This action expects packages/runner/dist to be committed to the repo."
+          echo "Fix:"
+          echo "  1) pnpm install"
+          echo "  2) pnpm -C packages/runner build"
+          echo "  3) git add packages/runner/dist && git commit && push"
+          echo ""
+          exit 1
+        fi
+
         ARGS=()
 
         if [ "${{ inputs.fail_fast }}" = "true" ]; then
@@ -102,7 +117,7 @@ runs:
           ARGS+=( --work-item-pattern "${{ inputs.work_item_pattern }}" )
         fi
 
-        node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
+        node "$CLI" run \
           --suite "${{ inputs.suite }}" \
           --base-url "${{ inputs.base_url }}" \
           --report "${{ inputs.report }}" \
