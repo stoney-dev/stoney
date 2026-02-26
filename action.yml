@@ -257,4 +257,3 @@ runs:
               issue_number,
               body,
             });
-          }
