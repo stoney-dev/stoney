@@ -1,4 +1,4 @@
-name: "Stoney"
+name: "Stoney Requirements-as-Code"
 description: "Run Stoney contracts against a base URL and report failures in CI."
 author: "stoneydev"
 branding:
