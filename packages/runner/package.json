@@ -1,7 +1,7 @@
 {
   "name": "@stoney-dev/stoney-runner",
   "version": "0.0.16",
-  "private": false, 
+  "private": false,
   "type": "module",
   "main": "./dist/schema.js",
   "types": "./dist/schema.d.ts",
@@ -15,7 +15,9 @@
       "types": "./dist/types.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "gen:schema": "tsx scripts/gen-schema.ts"
@@ -27,5 +29,10 @@
     "pg": "^8.18.0",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.25.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
   }
 }
