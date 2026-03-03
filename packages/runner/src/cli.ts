@@ -234,4 +234,44 @@ program
     process.exit(failed === 0 ? 0 : 1);
   });
 
+  program
+  .command("init")
+  .description("Initialize Stoney in your project (creates a sample contract)")
+  .action(() => {
+    const dir = ".stoney";
+    const filePath = path.join(dir, "example.yml");
+
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir);
+    }
+
+    if (fs.existsSync(filePath)) {
+      console.log(`⚠️  File already exists: ${filePath}`);
+      return;
+    }
+
+    const template = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
+version: 1
+feature: "Stoney Health Check"
+description: "Verify core infrastructure"
+contracts:
+  - name: "API Smoke Test"
+    description: "Check if the API is responding"
+    checks:
+      - id: "health-check"
+        says: "API should return 200"
+        steps:
+          - http:
+              method: "GET"
+              path: "/health"
+            expect:
+              status: 200
+`;
+
+    fs.writeFileSync(filePath, template, "utf8");
+    console.log(`✅ Initialized Stoney!`);
+    console.log(`   Created: ${filePath}`);
+    console.log(`   Tip: Add this to your CI/CD pipeline using the 'stoney run' command.`);
+  });
+
 program.parse(process.argv);

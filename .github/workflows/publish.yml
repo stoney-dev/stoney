@@ -1,0 +1,39 @@
+name: Publish Package
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: "@stoney-dev"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install
+        working-directory: packages/runner
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: packages/runner
+        run: pnpm run build
+
+      - name: Publish
+        working-directory: packages/runner
+        run: pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

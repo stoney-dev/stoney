@@ -1,15 +1,23 @@
 {
-  "name": "@stoney/runner",
+  "name": "@stoney-dev/stoney-runner",
   "version": "0.0.16",
-  "private": true,
+  "private": false, 
   "type": "module",
-  "bin": {
-    "stoney": "./dist/cli.cjs"
+  "main": "./dist/schema.js",
+  "types": "./dist/schema.d.ts",
+  "exports": {
+    "./schema": {
+      "import": "./dist/schema.js",
+      "types": "./dist/schema.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types.js",
+      "types": "./dist/types.d.ts"
+    }
   },
+  "files": ["dist"],
   "scripts": {
-    "dev": "tsx src/cli.ts",
     "build": "tsup",
-    "start": "node dist/cli.cjs",
     "gen:schema": "tsx scripts/gen-schema.ts"
   },
   "dependencies": {
@@ -19,13 +27,5 @@
     "pg": "^8.18.0",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.25.1"
-  },
-  "devDependencies": {
-    "@types/js-yaml": "^4.0.9",
-    "@types/node": "^25.2.3",
-    "@types/pg": "^8.16.0",
-    "tsup": "^8.5.1",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
   }
 }
