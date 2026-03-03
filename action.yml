@@ -67,6 +67,16 @@ inputs:
     description: "Postgres connection string for SQL checks (STONEY_DB_URL)"
     required: false
 
+  # Add these inputs to your inputs section
+  api_token:
+    description: "Your Stoney SaaS API Token (for telemetry)"
+    required: false
+
+  api_url:
+    description: "The API URL for your Stoney SaaS dashboard"
+    required: false
+    default: "https://stoneydev.com" # Change to your actual production domain
+
 runs:
   using: "composite"
   steps:
@@ -78,6 +88,8 @@ runs:
     - name: Run Stoney
       shell: bash
       env:
+        STONEY_API_TOKEN: ${{ inputs.api_token }}
+        STONEY_API_URL: ${{ inputs.api_url }}
         STONEY_BASE_URL: ${{ inputs.base_url }}
         STONEY_TOKEN: ${{ inputs.token }}
         STONEY_TIMEOUT_MS: ${{ inputs.timeout_ms }}

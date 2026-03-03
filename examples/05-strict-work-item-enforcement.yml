@@ -1,0 +1,18 @@
+name: Stoney Work Item Enforcement
+on: [pull_request]
+
+jobs:
+  stoney:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Stoney
+        uses: stoney-dev/stoney@main
+        with:
+          api_token: ${{ secrets.STONEY_API_TOKEN }}
+          base_url: "https://api.myapp.com"
+          suite: "contracts/*.yml"
+          # Mandatory: Force devs to link tickets
+          require_work_item: "true"
+          # Mandatory: Enforce naming convention (e.g., KAN-123)
+          work_item_pattern: "^KAN-\\d+$"

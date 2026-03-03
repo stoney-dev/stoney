@@ -1,0 +1,26 @@
+name: Stoney Multi-Environment
+on: [push]
+
+jobs:
+  test-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Stoney against Staging
+        uses: stoney-dev/stoney@main
+        with:
+          api_token: ${{ secrets.STONEY_API_TOKEN }}
+          base_url: ${{ secrets.STAGING_URL }}
+          suite: "contracts/*.yml"
+
+  test-production:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Stoney against Production
+        uses: stoney-dev/stoney@main
+        with:
+          api_token: ${{ secrets.STONEY_API_TOKEN }}
+          base_url: ${{ secrets.PROD_URL }}
+          suite: "contracts/*.yml"

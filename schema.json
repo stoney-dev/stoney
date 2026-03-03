@@ -1,0 +1,261 @@
+{
+  "$ref": "#/definitions/StoneyContractSchema",
+  "definitions": {
+    "StoneyContractSchema": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "feature": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "contracts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "work_item": {
+                      "type": "string"
+                    },
+                    "says": {
+                      "type": "string"
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "steps": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "http": {
+                                "type": "object",
+                                "properties": {
+                                  "method": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string",
+                                    "pattern": "^\\/"
+                                  },
+                                  "headers": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "query": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                      "type": [
+                                        "string",
+                                        "number",
+                                        "boolean"
+                                      ]
+                                    }
+                                  },
+                                  "body": {},
+                                  "timeout_ms": {
+                                    "type": "number"
+                                  },
+                                  "retries": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "method",
+                                  "path"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "expect": {
+                                "type": "object",
+                                "properties": {
+                                  "status": {
+                                    "type": "number"
+                                  },
+                                  "json": {},
+                                  "bodyContains": {
+                                    "type": "string"
+                                  },
+                                  "exit_code": {
+                                    "type": "number"
+                                  },
+                                  "stdout_contains": {
+                                    "type": "string"
+                                  },
+                                  "stderr_contains": {
+                                    "type": "string"
+                                  },
+                                  "stdout_not_contains": {
+                                    "type": "string"
+                                  },
+                                  "stderr_not_contains": {
+                                    "type": "string"
+                                  },
+                                  "stdout_regex": {
+                                    "type": "string"
+                                  },
+                                  "stderr_regex": {
+                                    "type": "string"
+                                  },
+                                  "stdout_empty": {
+                                    "type": "boolean"
+                                  },
+                                  "stderr_empty": {
+                                    "type": "boolean"
+                                  },
+                                  "max_duration_ms": {
+                                    "type": "number"
+                                  },
+                                  "rows": {
+                                    "type": "number"
+                                  },
+                                  "equals": {
+                                    "type": "object",
+                                    "additionalProperties": {}
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "http"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "exec": {
+                                "type": "object",
+                                "properties": {
+                                  "run": {
+                                    "type": "string"
+                                  },
+                                  "cwd": {
+                                    "type": "string"
+                                  },
+                                  "env": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "timeout_ms": {
+                                    "type": "number"
+                                  },
+                                  "retries": {
+                                    "type": "number"
+                                  },
+                                  "max_output_chars": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "run"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "expect": {
+                                "$ref": "#/definitions/StoneyContractSchema/properties/contracts/items/properties/checks/items/properties/steps/items/anyOf/0/properties/expect"
+                              }
+                            },
+                            "required": [
+                              "exec"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "sql": {
+                                "type": "object",
+                                "properties": {
+                                  "driver": {
+                                    "type": "string",
+                                    "const": "postgres"
+                                  },
+                                  "url_env": {
+                                    "type": "string"
+                                  },
+                                  "query": {
+                                    "type": "string"
+                                  },
+                                  "timeout_ms": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "driver",
+                                  "url_env",
+                                  "query"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "expect": {
+                                "$ref": "#/definitions/StoneyContractSchema/properties/contracts/items/properties/checks/items/properties/steps/items/anyOf/0/properties/expect"
+                              }
+                            },
+                            "required": [
+                              "sql"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "steps"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "name",
+              "checks"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "version",
+        "feature",
+        "contracts"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

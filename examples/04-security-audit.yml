@@ -1,0 +1,16 @@
+name: Stoney Security Audit
+on: [pull_request]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Stoney
+        uses: stoney-dev/stoney@main
+        with:
+          api_token: ${{ secrets.STONEY_API_TOKEN }}
+          # This assumes your contracts/*.yml have 'exec' steps
+          # to check file permissions, Docker health, or local config
+          suite: "contracts/security/*.yml"
+          fail_fast: "true"

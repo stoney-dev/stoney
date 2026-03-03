@@ -1,0 +1,15 @@
+name: Stoney Basic API Check
+on: [pull_request]
+
+jobs:
+  stoney:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Stoney
+        uses: stoney-dev/stoney@main
+        with:
+          api_token: ${{ secrets.STONEY_API_TOKEN }}
+          base_url: "https://api.myapp.com"
+          suite: "contracts/*.yml"
+          fail_fast: "true"
