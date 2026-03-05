@@ -2,7 +2,8 @@ name: Publish Package
 
 on:
   push:
-    branches: [main]
+    tags:
+      - "v*.*.*"
 
 jobs:
   publish:
@@ -25,14 +26,20 @@ jobs:
           version: 10
 
       - name: Install
-        working-directory: packages/runner
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        working-directory: packages/runner
-        run: pnpm run build
+      - name: Build runner
+        run: pnpm -C packages/runner build
 
-      - name: Publish
+      - name: Verify dist is committed
+        run: |
+          if ! git diff --quiet -- packages/runner/dist; then
+            echo "❌ dist differs from build output; refuse publish"
+            git --no-pager diff -- packages/runner/dist
+            exit 1
+          fi
+
+      - name: Publish runner package
         working-directory: packages/runner
         run: pnpm publish --no-git-checks
         env:
