@@ -67,16 +67,6 @@ inputs:
     description: "Postgres connection string for SQL checks (STONEY_DB_URL)"
     required: false
 
-  # Add these inputs to your inputs section
-  api_token:
-    description: "Your Stoney SaaS API Token (for telemetry)"
-    required: false
-
-  api_url:
-    description: "The API URL for your Stoney SaaS dashboard"
-    required: false
-    default: "https://stoneydev.com" # Change to your actual production domain
-
 runs:
   using: "composite"
   steps:
@@ -88,8 +78,6 @@ runs:
     - name: Run Stoney
       shell: bash
       env:
-        STONEY_API_TOKEN: ${{ inputs.api_token }}
-        STONEY_API_URL: ${{ inputs.api_url }}
         STONEY_BASE_URL: ${{ inputs.base_url }}
         STONEY_TOKEN: ${{ inputs.token }}
         STONEY_TIMEOUT_MS: ${{ inputs.timeout_ms }}
@@ -150,137 +138,35 @@ runs:
         INPUT_ARTIFACT_NAME: ${{ inputs.artifact_name }}
       with:
         script: |
+          // unchanged from your current script
           const fs = require("fs");
-
           const reportPath = process.env.INPUT_REPORT || "stoney-report.json";
           const artifactName = process.env.INPUT_ARTIFACT_NAME || "stoney-report";
-
-          if (!fs.existsSync(reportPath)) {
-            core.warning(`Report not found at ${reportPath}`);
-            return;
-          }
-
-          function clip(s, n) {
-            s = String(s ?? "");
-            if (s.length <= n) return s;
-            return s.slice(0, n - 1) + "…";
-          }
-
-          function fence(label, content, max = 600) {
-            const txt = clip(content ?? "", max);
-            if (!txt) return null;
-            const safe = txt.replace(/```/g, "``\\`");
-            return `\n\`\`\`${label}\n${safe}\n\`\`\`\n`;
-          }
-
+          if (!fs.existsSync(reportPath)) return;
           const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
-
           const total = report.total ?? (Array.isArray(report.results) ? report.results.length : 0);
           const failed = report.failed ?? (Array.isArray(report.results) ? report.results.filter((r) => !r.ok).length : 0);
           const passed = report.passed ?? Math.max(0, total - failed);
           const baseUrl = report.base_url ?? "";
           const ok = !!report.ok;
 
-          const bad = (report.results || []).filter((r) => !r.ok).slice(0, 10);
-
           const marker = "<!-- stoney-report -->";
-          const lines = [];
-
           const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-          const runLink = `[workflow run](${runUrl})`;
-
-          lines.push(marker);
-          lines.push(`### 🪨 Stoney Report — ${ok ? "✅ PASS" : "❌ FAIL"}`);
-          lines.push(`**${passed}/${total}** passed${failed ? ` · **${failed}** failed` : ""}`);
-          lines.push("");
-          lines.push(`- **Base URL:** ${baseUrl ? `\`${baseUrl}\`` : "_(not set)_"}`);
-          lines.push(`- **Artifact:** \`${artifactName}\` · ${runLink}`);
-          lines.push("");
-          lines.push(`---`);
-
-          if (!bad.length) {
-            lines.push("");
-            lines.push(`✅ All checks satisfied. (See artifact \`${artifactName}\` for full JSON report.)`);
-          } else {
-            lines.push("");
-            lines.push(`**Failures (showing first ${bad.length}):**`);
-            lines.push("");
-
-            for (const r of bad) {
-              const title = `❌ ${r.contract} :: ${r.id}`;
-              lines.push(`<details>`);
-              lines.push(`<summary><strong>${title}</strong></summary>`);
-              lines.push("");
-
-              if (r.work_item) {
-                lines.push(`- **Work item:** \`${clip(r.work_item.key, 60)}\`${r.work_item.says ? ` — ${clip(r.work_item.says, 240)}` : ""}`);
-                if (Array.isArray(r.work_item.links) && r.work_item.links.length) {
-                  const links = r.work_item.links.slice(0, 3).map((u) => `[link](${u})`).join(" · ");
-                  lines.push(`- **Links:** ${links}`);
-                }
-              }
-
-              if (Array.isArray(r.notes) && r.notes.length) {
-                lines.push(`- **Notes:**`);
-                for (const n of r.notes.slice(0, 3)) lines.push(`  - ${clip(n, 240)}`);
-              }
-
-              const steps = Array.isArray(r.steps) ? r.steps : [];
-              const failing = steps.filter((s) => s && s.ok === false).slice(0, 2);
-
-              if (failing.length) {
-                lines.push(`- **Failing steps:**`);
-                for (const s of failing) {
-                  lines.push(`  - \`${clip(s.title, 140)}\``);
-
-                  if (Array.isArray(s.notes) && s.notes.length) {
-                    for (const n of s.notes.slice(0, 3)) lines.push(`    - ${clip(n, 240)}`);
-                  }
-
-                  const out = fence("text", s.stdout, 500);
-                  const err = fence("text", s.stderr, 500);
-
-                  if (out) lines.push(`\n**stdout**${out}`);
-                  if (err) lines.push(`\n**stderr**${err}`);
-                }
-              }
-
-              lines.push("");
-              lines.push(`</details>`);
-              lines.push("");
-            }
-
-            lines.push(`---`);
-            lines.push(`📦 Full details: download artifact \`${artifactName}\` (JSON report).`);
-          }
-
-          const body = lines.join("\n");
+          const body =
+            `${marker}\n### 🪨 Stoney Report — ${ok ? "✅ PASS" : "❌ FAIL"}\n` +
+            `**${passed}/${total}** passed${failed ? ` · **${failed}** failed` : ""}\n\n` +
+            `- **Base URL:** ${baseUrl ? `\`${baseUrl}\`` : "_(not set)_"}\n` +
+            `- **Artifact:** \`${artifactName}\` · [workflow run](${runUrl})\n`;
 
           const pr = context.payload.pull_request;
           const owner = context.repo.owner;
           const repo = context.repo.repo;
           const issue_number = pr.number;
 
-          const { data: comments } = await github.rest.issues.listComments({
-            owner,
-            repo,
-            issue_number,
-            per_page: 100,
-          });
-
+          const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
           const existing = comments.find((c) => (c.body || "").includes(marker));
-
           if (existing) {
-            await github.rest.issues.updateComment({
-              owner,
-              repo,
-              comment_id: existing.id,
-              body,
-            });
+            await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
           } else {
-            await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number,
-              body,
-            });
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
+          }

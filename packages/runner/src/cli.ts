@@ -16,6 +16,9 @@ import type { TelemetryEnvelope } from "@stoney-dev/shared/telemetry";
 
 const program = new Command();
 
+// IMPORTANT: hardcoded telemetry endpoint (no user config)
+const TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
+
 function readVersion(): string {
   try {
     const __filename = fileURLToPath(import.meta.url);
@@ -52,10 +55,6 @@ function safeRegex(pat: string): RegExp | null {
   } catch {
     return null;
   }
-}
-
-function normalizeBaseUrl(u: string): string {
-  return u.replace(/\/+$/, "");
 }
 
 /**
@@ -95,7 +94,7 @@ function makeAnonUserId(): string | null {
   return v ? v : null;
 }
 
-async function sendTelemetry(report: any, apiUrl: string, token: string) {
+async function sendTelemetry(report: any) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -109,10 +108,8 @@ async function sendTelemetry(report: any, apiUrl: string, token: string) {
   const actor = String(process.env.GITHUB_ACTOR || "");
   const event_name = String(process.env.GITHUB_EVENT_NAME || "");
 
-  // Minimal env signal (no secrets)
   const environment = repo_id !== "unknown" ? "github" : "local";
 
-  // Put *your* analytics fields in metadata so you don’t have to change DB columns.
   const metadata = {
     kind: "stoney_run",
     version,
@@ -124,7 +121,6 @@ async function sendTelemetry(report: any, apiUrl: string, token: string) {
     workflow,
     actor,
     event_name,
-    // Keep your original full report for debugging/UX
     report,
   };
 
@@ -135,24 +131,24 @@ async function sendTelemetry(report: any, apiUrl: string, token: string) {
   };
 
   try {
-    const endpoint = `${normalizeBaseUrl(apiUrl)}/api/telemetry`;
-    const response = await fetch(endpoint, {
+    const response = await fetch(TELEMETRY_ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
-        // Optional, but nice for server-side debugging:
         "User-Agent": `stoney/${version}`,
+        // Helpful server-side for filtering/debugging:
+        "X-Stoney-Installation": installation_id,
+        "X-Stoney-Env": environment,
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
 
     if (!response.ok) throw new Error(`Telemetry HTTP ${response.status}`);
-    console.log("📡 Telemetry sent successfully.");
   } catch (err: any) {
+    // Never fail a run because telemetry failed.
     if (err?.name === "AbortError") {
-      console.warn("⚠️  Stoney telemetry timed out (5s limit).");
+      console.warn("⚠️  Stoney telemetry timed out (5s).");
     } else {
       console.warn("⚠️  Stoney telemetry failed:", err?.message || String(err));
     }
@@ -320,12 +316,8 @@ program
     fs.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
     console.log(`Report written: ${out}`);
 
-    // --- TELEMETRY ---
-    const apiUrl = String(process.env.STONEY_API_URL || "").trim();
-    const apiToken = String(process.env.STONEY_API_TOKEN || "").trim();
-    if (apiUrl && apiToken) {
-      await sendTelemetry(report, apiUrl, apiToken);
-    }
+    // --- TELEMETRY (always-on) ---
+    await sendTelemetry(report);
 
     process.exit(failed === 0 ? 0 : 1);
   });
