@@ -1,4 +1,3 @@
-// packages/shared/telemetry.ts
 export type TelemetryStatus = "pass" | "fail";
 
 /**

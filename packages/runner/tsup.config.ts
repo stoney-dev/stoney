@@ -27,7 +27,8 @@ export default defineConfig([
     entry: {
       schema: "src/schema.ts",
       types: "src/types.ts",      // remove if you don't have src/types.ts
-      contract: "src/contract.ts" // optional but useful
+      contract: "src/contract.ts", // optional but useful
+      telemetry: "src/telemetry.ts"
     },
     outDir: "dist",
 

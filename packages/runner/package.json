@@ -13,6 +13,10 @@
     "./types": {
       "import": "./dist/types.js",
       "types": "./dist/types.d.ts"
+    },
+    "./telemetry": {
+      "import": "./dist/telemetry.js",
+      "types": "./dist/telemetry.d.ts"
     }
   },
   "files": [
@@ -28,8 +32,7 @@
     "js-yaml": "^4.1.1",
     "pg": "^8.18.0",
     "zod": "^3.25.76",
-    "zod-to-json-schema": "^3.25.1",
-    "@stoney-dev/shared": "workspace:*"
+    "zod-to-json-schema": "^3.25.1"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

@@ -12,7 +12,7 @@ import type { SuiteFileV1, Step, Check } from "./schema.js";
 import type { ScenarioResult, StepResult } from "./types.js";
 import { runHttpStep } from "./http.js";
 import { runExecStep } from "./exec.js";
-import type { TelemetryEnvelope } from "@stoney-dev/shared/telemetry";
+import { TelemetryEnvelope } from "./telemetry.js";
 
 const program = new Command();
 
