@@ -11,16 +11,17 @@ permissions:
 jobs:
   selftest:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Install pnpm
-        run: npm i -g pnpm@10
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
@@ -28,13 +29,18 @@ jobs:
       - name: Build runner
         run: pnpm -C packages/runner build
 
-      - name: Ensure dist exists + smoke test
+      - name: Smoke test CLI
         run: |
           test -f packages/runner/dist/cli.cjs
           node packages/runner/dist/cli.cjs hello
 
+      # Only enforce dist drift on:
+      # - pushes to main, OR
+      # - the Changesets version PR branch (changeset-release/*)
       - name: Ensure dist is committed (no drift)
+        if: ${{ github.event_name == 'push' || startsWith(github.head_ref, 'changeset-release/') }}
         run: |
+          set -euo pipefail
           if ! git diff --quiet -- packages/runner/dist; then
             echo ""
             echo "❌ packages/runner/dist is out of date."

@@ -7,10 +7,12 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  packages: write
 
 jobs:
-  version_or_release_pr:
+  version_or_publish:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,6 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: "@stoney-dev"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -27,10 +31,12 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
-      # This creates (or updates) the "Version Packages" PR when changesets exist.
-      - name: Create Version Packages PR
+      - name: Create Version Packages PR OR publish (if version PR merged)
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
+          # publish runs on main AFTER the version PR is merged
+          publish: pnpm -C packages/runner publish --no-git-checks
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

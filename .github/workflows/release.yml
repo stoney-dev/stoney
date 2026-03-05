@@ -40,48 +40,6 @@ jobs:
           fetch-depth: 0
           ref: ${{ steps.vars.outputs.tag }}
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install pnpm
-        run: npm i -g pnpm@10
-
-      - name: Install deps
-        run: pnpm install --frozen-lockfile
-
-      - name: Build runner
-        run: pnpm -C packages/runner build
-
-      - name: Verify dist exists
-        run: test -f packages/runner/dist/cli.cjs
-
-      - name: Verify dist is committed (required)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if ! git diff --quiet -- packages/runner/dist; then
-            echo ""
-            echo "❌ Refusing to release: packages/runner/dist differs from built output."
-            echo ""
-            echo "Fix this on main BEFORE tagging:"
-            echo "  pnpm install"
-            echo "  pnpm -C packages/runner build"
-            echo "  git add packages/runner/dist"
-            echo "  git commit -m \"build: update runner dist\""
-            echo "  git push"
-            echo ""
-            echo "Then create/push the tag again:"
-            echo "  git tag -a ${{ steps.vars.outputs.tag }} -m \"${{ steps.vars.outputs.tag }}\""
-            echo "  git push origin ${{ steps.vars.outputs.tag }}"
-            echo ""
-            echo "Diff:"
-            git --no-pager diff -- packages/runner/dist
-            exit 1
-          fi
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
