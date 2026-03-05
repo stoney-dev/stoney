@@ -1,0 +1,20 @@
+{
+    "name": "@stoney-dev/shared",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "exports": {
+      "./telemetry": {
+        "types": "./dist/telemetry.d.ts",
+        "import": "./dist/telemetry.js"
+      }
+    },
+    "files": ["dist"],
+    "scripts": {
+      "build": "tsup src/telemetry.ts --format esm --dts --out-dir dist"
+    },
+    "devDependencies": {
+      "tsup": "^8.5.1",
+      "typescript": "^5.9.3"
+    }
+  }

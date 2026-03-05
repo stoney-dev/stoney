@@ -1,61 +1,36 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import fg from "fast-glob";
 import { Command } from "commander";
-import { loadSuite, type SuiteFileV1, type Step, type Check } from "./contract.js";
+import { fileURLToPath } from "node:url";
+
+import { runSqlStep } from "./sql.js";
+import { loadSuite } from "./contract.js";
+import type { SuiteFileV1, Step, Check } from "./schema.js";
+import type { ScenarioResult, StepResult } from "./types.js";
 import { runHttpStep } from "./http.js";
 import { runExecStep } from "./exec.js";
-import { runSqlStep } from "./sql.js";
-import type { ScenarioResult, StepResult } from "./types.js";
+import type { TelemetryEnvelope } from "@stoney-dev/shared/telemetry";
 
 const program = new Command();
 
-// Replace your existing sendTelemetry with this:
-async function sendTelemetry(report: any, apiUrl: string, token: string) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
-
+function readVersion(): string {
   try {
-    const endpoint = `${apiUrl.replace(/\/$/, "")}/api/telemetry`;
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        repo_id: process.env.GITHUB_REPOSITORY || "unknown",
-        status: report.ok ? "pass" : "fail",
-        metadata: report,
-      }),
-      signal: controller.signal,
-    });
-    
-    if (!response.ok) throw new Error(`Telemetry HTTP ${response.status}`);
-    console.log("📡 Telemetry sent successfully.");
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      console.warn("⚠️  Stoney telemetry timed out (5s limit).");
-    } else {
-      console.warn("⚠️  Stoney telemetry failed:", err.message);
-    }
-  } finally {
-    clearTimeout(timeoutId);
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+
+    // In dist bundle, this file lives in packages/runner/dist/cli.cjs
+    // package.json is at packages/runner/package.json
+    const pkgPath = path.resolve(__dirname, "../package.json");
+    const raw = fs.readFileSync(pkgPath, "utf8");
+    const pkg = JSON.parse(raw) as { version?: string };
+    return pkg.version || "0.0.0";
+  } catch {
+    return "0.0.0";
   }
 }
-
-program.name("stoney").description("Stoney — run contracts in CI.").version("0.0.1");
-program.command("hello").action(() => console.log("🪨 Stoney is alive."));
-
-program
-  .command("parse")
-  .argument("<file>", "Contract file (.yml/.yaml or .json)")
-  .option("--pretty", "Pretty-print JSON")
-  .action((file: string, opts: any) => {
-    const suite = loadSuite(file);
-    console.log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
-  });
 
 function envFlag(name: string): boolean {
   const v = String(process.env[name] || "").trim().toLowerCase();
@@ -79,6 +54,113 @@ function safeRegex(pat: string): RegExp | null {
   }
 }
 
+function normalizeBaseUrl(u: string): string {
+  return u.replace(/\/+$/, "");
+}
+
+/**
+ * A stable install-ish id so you can count unique usage without asking users for anything.
+ * - In GitHub, use owner/repo as the stable key (one “installation” per repo).
+ * - Locally, store a random id in ~/.stoney/telemetry-id so it stays stable on that machine.
+ */
+function getInstallationId(): string {
+  const repo = String(process.env.GITHUB_REPOSITORY || "").trim();
+  if (repo) return `gh:${repo.toLowerCase()}`;
+
+  try {
+    const home = process.env.HOME || process.env.USERPROFILE;
+    if (!home) return `local:${crypto.randomUUID()}`;
+
+    const dir = path.join(home, ".stoney");
+    const file = path.join(dir, "telemetry-id");
+
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    if (fs.existsSync(file)) {
+      const existing = fs.readFileSync(file, "utf8").trim();
+      if (existing) return `local:${existing}`;
+    }
+
+    const id = crypto.randomUUID();
+    fs.writeFileSync(file, id, "utf8");
+    return `local:${id}`;
+  } catch {
+    return `local:${crypto.randomUUID()}`;
+  }
+}
+
+function makeAnonUserId(): string | null {
+  // Optional: allow an explicit anon user id (e.g., action sets it)
+  const v = String(process.env.STONEY_USER_ID || "").trim();
+  return v ? v : null;
+}
+
+async function sendTelemetry(report: any, apiUrl: string, token: string) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+  const version = readVersion();
+  const installation_id = getInstallationId();
+  const anon_user_id = makeAnonUserId();
+
+  const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
+  const run_id = String(process.env.GITHUB_RUN_ID || "");
+  const workflow = String(process.env.GITHUB_WORKFLOW || "");
+  const actor = String(process.env.GITHUB_ACTOR || "");
+  const event_name = String(process.env.GITHUB_EVENT_NAME || "");
+
+  // Minimal env signal (no secrets)
+  const environment = repo_id !== "unknown" ? "github" : "local";
+
+  // Put *your* analytics fields in metadata so you don’t have to change DB columns.
+  const metadata = {
+    kind: "stoney_run",
+    version,
+    installation_id,
+    anon_user_id,
+    environment,
+    repo_id,
+    run_id,
+    workflow,
+    actor,
+    event_name,
+    // Keep your original full report for debugging/UX
+    report,
+  };
+
+  const payload: TelemetryEnvelope = {
+    repo_id,
+    status: report?.ok ? "pass" : "fail",
+    metadata,
+  };
+
+  try {
+    const endpoint = `${normalizeBaseUrl(apiUrl)}/api/telemetry`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        // Optional, but nice for server-side debugging:
+        "User-Agent": `stoney/${version}`,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) throw new Error(`Telemetry HTTP ${response.status}`);
+    console.log("📡 Telemetry sent successfully.");
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      console.warn("⚠️  Stoney telemetry timed out (5s limit).");
+    } else {
+      console.warn("⚠️  Stoney telemetry failed:", err?.message || String(err));
+    }
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
   if ("http" in st) {
     if (!baseUrl) {
@@ -95,6 +177,18 @@ async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
   if ("sql" in st) return runSqlStep(st.sql, st.expect);
   return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type."] };
 }
+
+program.name("stoney").description("Stoney — run contracts in CI.").version(readVersion());
+program.command("hello").action(() => console.log("🪨 Stoney is alive."));
+
+program
+  .command("parse")
+  .argument("<file>", "Contract file (.yml/.yaml or .json)")
+  .option("--pretty", "Pretty-print JSON")
+  .action((file: string, opts: any) => {
+    const suite = loadSuite(file);
+    console.log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
+  });
 
 program
   .command("run")
@@ -193,14 +287,17 @@ program
             }
           }
 
-          results.push({ 
-            feature: suite.feature, 
-            contract: contract.name, 
+          results.push({
+            feature: suite.feature,
+            contract: contract.name,
             id: check.id,
             ok: checkOk,
             work_item: check.work_item ? { key: check.work_item, says: check.says, links: check.links } : undefined,
-            method, url, status, notes,
-            steps: stepResults
+            method,
+            url,
+            status,
+            notes,
+            steps: stepResults,
           });
 
           if (!checkOk) failed++;
@@ -219,7 +316,6 @@ program
       results,
     };
 
-    // Write file
     const out = path.resolve(process.cwd(), opts.report);
     fs.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
     console.log(`Report written: ${out}`);
@@ -228,22 +324,20 @@ program
     const apiUrl = String(process.env.STONEY_API_URL || "").trim();
     const apiToken = String(process.env.STONEY_API_TOKEN || "").trim();
     if (apiUrl && apiToken) {
-       await sendTelemetry(report, apiUrl, apiToken);
+      await sendTelemetry(report, apiUrl, apiToken);
     }
 
     process.exit(failed === 0 ? 0 : 1);
   });
 
-  program
+program
   .command("init")
   .description("Initialize Stoney in your project (creates a sample contract)")
   .action(() => {
     const dir = ".stoney";
     const filePath = path.join(dir, "example.yml");
 
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir);
-    }
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
 
     if (fs.existsSync(filePath)) {
       console.log(`⚠️  File already exists: ${filePath}`);
@@ -271,7 +365,6 @@ contracts:
     fs.writeFileSync(filePath, template, "utf8");
     console.log(`✅ Initialized Stoney!`);
     console.log(`   Created: ${filePath}`);
-    console.log(`   Tip: Add this to your CI/CD pipeline using the 'stoney run' command.`);
   });
 
 program.parse(process.argv);

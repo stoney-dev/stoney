@@ -19,13 +19,54 @@ export const ExpectationSchema = z.object({
   equals: z.record(z.string(), z.any()).optional(),
 });
 
+// --- HTTP Body (NEW) ---
+// Preferred: body: { json: {...} } OR body: { jsonFile: "..." } OR body: { text: "..." }
+export const HttpBodySchema = z
+  .object({
+    json: z.any().optional(),
+    jsonFile: z.string().optional(),
+    text: z.string().optional(),
+  })
+  .superRefine((v, ctx) => {
+    const chosen = [v.json !== undefined, !!v.jsonFile, v.text !== undefined].filter(Boolean).length;
+    if (chosen === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "body must include exactly one of: json, jsonFile, text",
+      });
+    }
+    if (chosen > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "body must include only one of: json, jsonFile, text",
+      });
+    }
+  });
+
 // --- Step Definitions ---
 export const HttpStepSchema = z.object({
   method: z.string(),
   path: z.string().startsWith("/"),
   headers: z.record(z.string(), z.string()).optional(),
   query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
-  body: z.any().optional(),
+
+  /**
+   * Back-compat + UX:
+   * - body: { json: ... }  (preferred)
+   * - body: { jsonFile: ... } (preferred)
+   * - body: { text: ... } (preferred)
+   * - body: { ... } (legacy direct JSON object allowed)
+   * - body: "raw string" (legacy)
+   */
+   body: z.union([
+    HttpBodySchema,
+    z.string(), // legacy raw string
+    z.record(z.string(), z.any()), // legacy JSON object
+    z.array(z.any()), // legacy JSON array
+    z.number(),
+    z.boolean(),
+    z.null(),
+  ]).optional(),
   timeout_ms: z.number().optional(),
   retries: z.number().optional(),
 });

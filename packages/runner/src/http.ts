@@ -1,11 +1,15 @@
 // packages/runner/src/http.ts
+import fs from "node:fs";
+import path from "node:path";
+import { resolveFakePlaceholders } from "./fake.js";
+import { interpolate } from "./env.js";
 import { deepSubsetMatch } from "./match.js";
-import type { HttpStep, Expectation } from "./contract.js";
+import type { HttpStep, Expectation } from "./schema.js";
 import type { StepResult } from "./types.js";
 
-function joinUrl(baseUrl: string, path: string): string {
+function joinUrl(baseUrl: string, pth: string): string {
   const base = baseUrl.replace(/\/+$/, "");
-  const p = path.startsWith("/") ? path : `/${path}`;
+  const p = pth.startsWith("/") ? pth : `/${pth}`;
   return `${base}${p}`;
 }
 
@@ -31,6 +35,15 @@ function envNum(name: string, fallback: number): number {
   return Number.isFinite(raw) && raw >= 0 ? raw : fallback;
 }
 
+function isObj(x: unknown): x is Record<string, unknown> {
+  return !!x && typeof x === "object" && !Array.isArray(x);
+}
+
+function looksLikeBodyObject(x: unknown): x is { json?: unknown; jsonFile?: string; text?: string } {
+  if (!isObj(x)) return false;
+  return "json" in x || "jsonFile" in x || "text" in x;
+}
+
 export async function runHttpStep(baseUrl: string, step: HttpStep, expect?: Expectation): Promise<StepResult> {
   const method = step.method.toUpperCase();
   const url = withQuery(joinUrl(baseUrl, step.path), step.query);
@@ -38,11 +51,70 @@ export async function runHttpStep(baseUrl: string, step: HttpStep, expect?: Expe
 
   const headers: Record<string, string> = { ...(step.headers || {}) };
 
-  let body: string | undefined;
+  // Deterministic-ish seed per request
+  const seedKey = [process.env.GITHUB_REPOSITORY || "local", method, url].join("|");
+
+  // --- Build request body ---
+  let bodyText: string | undefined;
+
   if (step.body !== undefined && step.body !== null) {
-    if (typeof step.body === "string") body = step.body;
-    else {
-      body = JSON.stringify(step.body);
+    // Preferred structured body: { json } | { jsonFile } | { text }
+    if (looksLikeBodyObject(step.body)) {
+      if (typeof step.body.text === "string") {
+        bodyText = step.body.text;
+      } else if (typeof step.body.jsonFile === "string") {
+        const abs = path.resolve(process.cwd(), step.body.jsonFile);
+        if (!fs.existsSync(abs)) {
+          return {
+            ok: false,
+            kind: "http",
+            title: `http ${method} ${step.path}`,
+            method,
+            url,
+            notes: [`body.jsonFile not found: ${abs}`],
+          };
+        }
+
+        const raw = fs.readFileSync(abs, "utf8");
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          return {
+            ok: false,
+            kind: "http",
+            title: `http ${method} ${step.path}`,
+            method,
+            url,
+            notes: [`body.jsonFile is not valid JSON: ${abs}`],
+          };
+        }
+
+        // allow ${ENV} interpolation in JSON files too
+        const interpolated = interpolate(parsed);
+
+        // replace fake() placeholders
+        const finalized = resolveFakePlaceholders(interpolated, seedKey);
+
+        bodyText = JSON.stringify(finalized);
+        if (!headers["content-type"]) headers["content-type"] = "application/json";
+      } else {
+        // json inline
+        const interpolated = interpolate(step.body.json);
+        const finalized = resolveFakePlaceholders(interpolated, seedKey);
+
+        bodyText = JSON.stringify(finalized);
+        if (!headers["content-type"]) headers["content-type"] = "application/json";
+      }
+    } else if (typeof step.body === "string") {
+      // legacy: body is a raw string
+      bodyText = step.body;
+    } else {
+      // legacy: body is a raw object/anything -> treat as JSON
+      const interpolated = interpolate(step.body);
+      const finalized = resolveFakePlaceholders(interpolated, seedKey);
+
+      bodyText = JSON.stringify(finalized);
       if (!headers["content-type"]) headers["content-type"] = "application/json";
     }
   }
@@ -62,7 +134,7 @@ export async function runHttpStep(baseUrl: string, step: HttpStep, expect?: Expe
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await fetchWithTimeout(url, { method, headers, body }, timeoutMs);
+      const res = await fetchWithTimeout(url, { method, headers, body: bodyText }, timeoutMs);
       const status = res.status;
       const text = await res.text();
 

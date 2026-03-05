@@ -16,7 +16,7 @@ export function loadSuite(filePath: string): SuiteFileV1 {
   // 1. Interpolate variables (your existing runtime logic)
   const interpolated = interpolate(data);
 
-  // 2. Validate against Zod schema (The "Pro" validation layer)
+  // 2. Validate against Zod schema (your contract language validator)
   const result = SuiteSchema.safeParse(interpolated);
 
   if (!result.success) {

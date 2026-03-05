@@ -1,8 +1,9 @@
 // packages/runner/src/sql.ts
 import pg from "pg";
-import type { SqlStep, Expectation } from "./contract.js";
+import type { SqlStep, Expectation } from "./schema.js";
 import type { StepResult } from "./types.js";
 import { deepSubsetMatch } from "./match.js";
+
 
 const { Client } = pg;
 
