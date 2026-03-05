@@ -14,9 +14,6 @@ importers:
 
   packages/runner:
     dependencies:
-      '@stoney-dev/shared':
-        specifier: workspace:*
-        version: link:../shared
       commander:
         specifier: ^14.0.3
         version: 14.0.3
@@ -45,15 +42,6 @@ importers:
       '@types/pg':
         specifier: ^8.18.0
         version: 8.18.0
-      tsup:
-        specifier: ^8.5.1
-        version: 8.5.1(typescript@5.9.3)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  packages/shared:
-    devDependencies:
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(typescript@5.9.3)

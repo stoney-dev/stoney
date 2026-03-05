@@ -35,7 +35,5 @@ jobs:
           version: pnpm changeset version
           publish: pnpm -C packages/runner publish --no-git-checks
         env:
-          # ✅ Use PAT so PR creation is allowed even when Actions is blocked
-          GITHUB_TOKEN: ${{ secrets.CHANGESETS_TOKEN }}
-          # ✅ Publish auth (GitHub Packages)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
