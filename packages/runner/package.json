@@ -28,7 +28,8 @@
     "js-yaml": "^4.1.1",
     "pg": "^8.18.0",
     "zod": "^3.25.76",
-    "zod-to-json-schema": "^3.25.1"
+    "zod-to-json-schema": "^3.25.1",
+    "@stoney-dev/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

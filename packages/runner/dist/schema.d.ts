@@ -49,12 +49,61 @@ declare const ExpectationSchema: z.ZodObject<{
     rows?: number | undefined;
     equals?: Record<string, any> | undefined;
 }>;
+declare const HttpBodySchema: z.ZodEffects<z.ZodObject<{
+    json: z.ZodOptional<z.ZodAny>;
+    jsonFile: z.ZodOptional<z.ZodString>;
+    text: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    json?: any;
+    jsonFile?: string | undefined;
+    text?: string | undefined;
+}, {
+    json?: any;
+    jsonFile?: string | undefined;
+    text?: string | undefined;
+}>, {
+    json?: any;
+    jsonFile?: string | undefined;
+    text?: string | undefined;
+}, {
+    json?: any;
+    jsonFile?: string | undefined;
+    text?: string | undefined;
+}>;
 declare const HttpStepSchema: z.ZodObject<{
     method: z.ZodString;
     path: z.ZodString;
     headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
     query: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>>>;
-    body: z.ZodOptional<z.ZodAny>;
+    /**
+     * Back-compat + UX:
+     * - body: { json: ... }  (preferred)
+     * - body: { jsonFile: ... } (preferred)
+     * - body: { text: ... } (preferred)
+     * - body: { ... } (legacy direct JSON object allowed)
+     * - body: "raw string" (legacy)
+     */
+    body: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodObject<{
+        json: z.ZodOptional<z.ZodAny>;
+        jsonFile: z.ZodOptional<z.ZodString>;
+        text: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        json?: any;
+        jsonFile?: string | undefined;
+        text?: string | undefined;
+    }, {
+        json?: any;
+        jsonFile?: string | undefined;
+        text?: string | undefined;
+    }>, {
+        json?: any;
+        jsonFile?: string | undefined;
+        text?: string | undefined;
+    }, {
+        json?: any;
+        jsonFile?: string | undefined;
+        text?: string | undefined;
+    }>, z.ZodString, z.ZodRecord<z.ZodString, z.ZodAny>, z.ZodArray<z.ZodAny, "many">, z.ZodNumber, z.ZodBoolean, z.ZodNull]>>;
     timeout_ms: z.ZodOptional<z.ZodNumber>;
     retries: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
@@ -62,7 +111,11 @@ declare const HttpStepSchema: z.ZodObject<{
     method: string;
     headers?: Record<string, string> | undefined;
     query?: Record<string, string | number | boolean> | undefined;
-    body?: any;
+    body?: string | number | boolean | any[] | Record<string, any> | {
+        json?: any;
+        jsonFile?: string | undefined;
+        text?: string | undefined;
+    } | null | undefined;
     timeout_ms?: number | undefined;
     retries?: number | undefined;
 }, {
@@ -70,7 +123,11 @@ declare const HttpStepSchema: z.ZodObject<{
     method: string;
     headers?: Record<string, string> | undefined;
     query?: Record<string, string | number | boolean> | undefined;
-    body?: any;
+    body?: string | number | boolean | any[] | Record<string, any> | {
+        json?: any;
+        jsonFile?: string | undefined;
+        text?: string | undefined;
+    } | null | undefined;
     timeout_ms?: number | undefined;
     retries?: number | undefined;
 }>;
@@ -118,7 +175,35 @@ declare const StepSchema: z.ZodUnion<[z.ZodObject<{
         path: z.ZodString;
         headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
         query: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>>>;
-        body: z.ZodOptional<z.ZodAny>;
+        /**
+         * Back-compat + UX:
+         * - body: { json: ... }  (preferred)
+         * - body: { jsonFile: ... } (preferred)
+         * - body: { text: ... } (preferred)
+         * - body: { ... } (legacy direct JSON object allowed)
+         * - body: "raw string" (legacy)
+         */
+        body: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodObject<{
+            json: z.ZodOptional<z.ZodAny>;
+            jsonFile: z.ZodOptional<z.ZodString>;
+            text: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            json?: any;
+            jsonFile?: string | undefined;
+            text?: string | undefined;
+        }, {
+            json?: any;
+            jsonFile?: string | undefined;
+            text?: string | undefined;
+        }>, {
+            json?: any;
+            jsonFile?: string | undefined;
+            text?: string | undefined;
+        }, {
+            json?: any;
+            jsonFile?: string | undefined;
+            text?: string | undefined;
+        }>, z.ZodString, z.ZodRecord<z.ZodString, z.ZodAny>, z.ZodArray<z.ZodAny, "many">, z.ZodNumber, z.ZodBoolean, z.ZodNull]>>;
         timeout_ms: z.ZodOptional<z.ZodNumber>;
         retries: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
@@ -126,7 +211,11 @@ declare const StepSchema: z.ZodUnion<[z.ZodObject<{
         method: string;
         headers?: Record<string, string> | undefined;
         query?: Record<string, string | number | boolean> | undefined;
-        body?: any;
+        body?: string | number | boolean | any[] | Record<string, any> | {
+            json?: any;
+            jsonFile?: string | undefined;
+            text?: string | undefined;
+        } | null | undefined;
         timeout_ms?: number | undefined;
         retries?: number | undefined;
     }, {
@@ -134,7 +223,11 @@ declare const StepSchema: z.ZodUnion<[z.ZodObject<{
         method: string;
         headers?: Record<string, string> | undefined;
         query?: Record<string, string | number | boolean> | undefined;
-        body?: any;
+        body?: string | number | boolean | any[] | Record<string, any> | {
+            json?: any;
+            jsonFile?: string | undefined;
+            text?: string | undefined;
+        } | null | undefined;
         timeout_ms?: number | undefined;
         retries?: number | undefined;
     }>;
@@ -193,7 +286,11 @@ declare const StepSchema: z.ZodUnion<[z.ZodObject<{
         method: string;
         headers?: Record<string, string> | undefined;
         query?: Record<string, string | number | boolean> | undefined;
-        body?: any;
+        body?: string | number | boolean | any[] | Record<string, any> | {
+            json?: any;
+            jsonFile?: string | undefined;
+            text?: string | undefined;
+        } | null | undefined;
         timeout_ms?: number | undefined;
         retries?: number | undefined;
     };
@@ -220,7 +317,11 @@ declare const StepSchema: z.ZodUnion<[z.ZodObject<{
         method: string;
         headers?: Record<string, string> | undefined;
         query?: Record<string, string | number | boolean> | undefined;
-        body?: any;
+        body?: string | number | boolean | any[] | Record<string, any> | {
+            json?: any;
+            jsonFile?: string | undefined;
+            text?: string | undefined;
+        } | null | undefined;
         timeout_ms?: number | undefined;
         retries?: number | undefined;
     };
@@ -491,7 +592,35 @@ declare const CheckSchema: z.ZodObject<{
             path: z.ZodString;
             headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
             query: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>>>;
-            body: z.ZodOptional<z.ZodAny>;
+            /**
+             * Back-compat + UX:
+             * - body: { json: ... }  (preferred)
+             * - body: { jsonFile: ... } (preferred)
+             * - body: { text: ... } (preferred)
+             * - body: { ... } (legacy direct JSON object allowed)
+             * - body: "raw string" (legacy)
+             */
+            body: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodObject<{
+                json: z.ZodOptional<z.ZodAny>;
+                jsonFile: z.ZodOptional<z.ZodString>;
+                text: z.ZodOptional<z.ZodString>;
+            }, "strip", z.ZodTypeAny, {
+                json?: any;
+                jsonFile?: string | undefined;
+                text?: string | undefined;
+            }, {
+                json?: any;
+                jsonFile?: string | undefined;
+                text?: string | undefined;
+            }>, {
+                json?: any;
+                jsonFile?: string | undefined;
+                text?: string | undefined;
+            }, {
+                json?: any;
+                jsonFile?: string | undefined;
+                text?: string | undefined;
+            }>, z.ZodString, z.ZodRecord<z.ZodString, z.ZodAny>, z.ZodArray<z.ZodAny, "many">, z.ZodNumber, z.ZodBoolean, z.ZodNull]>>;
             timeout_ms: z.ZodOptional<z.ZodNumber>;
             retries: z.ZodOptional<z.ZodNumber>;
         }, "strip", z.ZodTypeAny, {
@@ -499,7 +628,11 @@ declare const CheckSchema: z.ZodObject<{
             method: string;
             headers?: Record<string, string> | undefined;
             query?: Record<string, string | number | boolean> | undefined;
-            body?: any;
+            body?: string | number | boolean | any[] | Record<string, any> | {
+                json?: any;
+                jsonFile?: string | undefined;
+                text?: string | undefined;
+            } | null | undefined;
             timeout_ms?: number | undefined;
             retries?: number | undefined;
         }, {
@@ -507,7 +640,11 @@ declare const CheckSchema: z.ZodObject<{
             method: string;
             headers?: Record<string, string> | undefined;
             query?: Record<string, string | number | boolean> | undefined;
-            body?: any;
+            body?: string | number | boolean | any[] | Record<string, any> | {
+                json?: any;
+                jsonFile?: string | undefined;
+                text?: string | undefined;
+            } | null | undefined;
             timeout_ms?: number | undefined;
             retries?: number | undefined;
         }>;
@@ -566,7 +703,11 @@ declare const CheckSchema: z.ZodObject<{
             method: string;
             headers?: Record<string, string> | undefined;
             query?: Record<string, string | number | boolean> | undefined;
-            body?: any;
+            body?: string | number | boolean | any[] | Record<string, any> | {
+                json?: any;
+                jsonFile?: string | undefined;
+                text?: string | undefined;
+            } | null | undefined;
             timeout_ms?: number | undefined;
             retries?: number | undefined;
         };
@@ -593,7 +734,11 @@ declare const CheckSchema: z.ZodObject<{
             method: string;
             headers?: Record<string, string> | undefined;
             query?: Record<string, string | number | boolean> | undefined;
-            body?: any;
+            body?: string | number | boolean | any[] | Record<string, any> | {
+                json?: any;
+                jsonFile?: string | undefined;
+                text?: string | undefined;
+            } | null | undefined;
             timeout_ms?: number | undefined;
             retries?: number | undefined;
         };
@@ -861,7 +1006,11 @@ declare const CheckSchema: z.ZodObject<{
             method: string;
             headers?: Record<string, string> | undefined;
             query?: Record<string, string | number | boolean> | undefined;
-            body?: any;
+            body?: string | number | boolean | any[] | Record<string, any> | {
+                json?: any;
+                jsonFile?: string | undefined;
+                text?: string | undefined;
+            } | null | undefined;
             timeout_ms?: number | undefined;
             retries?: number | undefined;
         };
@@ -944,7 +1093,11 @@ declare const CheckSchema: z.ZodObject<{
             method: string;
             headers?: Record<string, string> | undefined;
             query?: Record<string, string | number | boolean> | undefined;
-            body?: any;
+            body?: string | number | boolean | any[] | Record<string, any> | {
+                json?: any;
+                jsonFile?: string | undefined;
+                text?: string | undefined;
+            } | null | undefined;
             timeout_ms?: number | undefined;
             retries?: number | undefined;
         };
@@ -1034,7 +1187,35 @@ declare const ContractSchema: z.ZodObject<{
                 path: z.ZodString;
                 headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
                 query: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>>>;
-                body: z.ZodOptional<z.ZodAny>;
+                /**
+                 * Back-compat + UX:
+                 * - body: { json: ... }  (preferred)
+                 * - body: { jsonFile: ... } (preferred)
+                 * - body: { text: ... } (preferred)
+                 * - body: { ... } (legacy direct JSON object allowed)
+                 * - body: "raw string" (legacy)
+                 */
+                body: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodObject<{
+                    json: z.ZodOptional<z.ZodAny>;
+                    jsonFile: z.ZodOptional<z.ZodString>;
+                    text: z.ZodOptional<z.ZodString>;
+                }, "strip", z.ZodTypeAny, {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                }, {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                }>, {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                }, {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                }>, z.ZodString, z.ZodRecord<z.ZodString, z.ZodAny>, z.ZodArray<z.ZodAny, "many">, z.ZodNumber, z.ZodBoolean, z.ZodNull]>>;
                 timeout_ms: z.ZodOptional<z.ZodNumber>;
                 retries: z.ZodOptional<z.ZodNumber>;
             }, "strip", z.ZodTypeAny, {
@@ -1042,7 +1223,11 @@ declare const ContractSchema: z.ZodObject<{
                 method: string;
                 headers?: Record<string, string> | undefined;
                 query?: Record<string, string | number | boolean> | undefined;
-                body?: any;
+                body?: string | number | boolean | any[] | Record<string, any> | {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                } | null | undefined;
                 timeout_ms?: number | undefined;
                 retries?: number | undefined;
             }, {
@@ -1050,7 +1235,11 @@ declare const ContractSchema: z.ZodObject<{
                 method: string;
                 headers?: Record<string, string> | undefined;
                 query?: Record<string, string | number | boolean> | undefined;
-                body?: any;
+                body?: string | number | boolean | any[] | Record<string, any> | {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                } | null | undefined;
                 timeout_ms?: number | undefined;
                 retries?: number | undefined;
             }>;
@@ -1109,7 +1298,11 @@ declare const ContractSchema: z.ZodObject<{
                 method: string;
                 headers?: Record<string, string> | undefined;
                 query?: Record<string, string | number | boolean> | undefined;
-                body?: any;
+                body?: string | number | boolean | any[] | Record<string, any> | {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                } | null | undefined;
                 timeout_ms?: number | undefined;
                 retries?: number | undefined;
             };
@@ -1136,7 +1329,11 @@ declare const ContractSchema: z.ZodObject<{
                 method: string;
                 headers?: Record<string, string> | undefined;
                 query?: Record<string, string | number | boolean> | undefined;
-                body?: any;
+                body?: string | number | boolean | any[] | Record<string, any> | {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                } | null | undefined;
                 timeout_ms?: number | undefined;
                 retries?: number | undefined;
             };
@@ -1404,7 +1601,11 @@ declare const ContractSchema: z.ZodObject<{
                 method: string;
                 headers?: Record<string, string> | undefined;
                 query?: Record<string, string | number | boolean> | undefined;
-                body?: any;
+                body?: string | number | boolean | any[] | Record<string, any> | {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                } | null | undefined;
                 timeout_ms?: number | undefined;
                 retries?: number | undefined;
             };
@@ -1487,7 +1688,11 @@ declare const ContractSchema: z.ZodObject<{
                 method: string;
                 headers?: Record<string, string> | undefined;
                 query?: Record<string, string | number | boolean> | undefined;
-                body?: any;
+                body?: string | number | boolean | any[] | Record<string, any> | {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                } | null | undefined;
                 timeout_ms?: number | undefined;
                 retries?: number | undefined;
             };
@@ -1573,7 +1778,11 @@ declare const ContractSchema: z.ZodObject<{
                 method: string;
                 headers?: Record<string, string> | undefined;
                 query?: Record<string, string | number | boolean> | undefined;
-                body?: any;
+                body?: string | number | boolean | any[] | Record<string, any> | {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                } | null | undefined;
                 timeout_ms?: number | undefined;
                 retries?: number | undefined;
             };
@@ -1660,7 +1869,11 @@ declare const ContractSchema: z.ZodObject<{
                 method: string;
                 headers?: Record<string, string> | undefined;
                 query?: Record<string, string | number | boolean> | undefined;
-                body?: any;
+                body?: string | number | boolean | any[] | Record<string, any> | {
+                    json?: any;
+                    jsonFile?: string | undefined;
+                    text?: string | undefined;
+                } | null | undefined;
                 timeout_ms?: number | undefined;
                 retries?: number | undefined;
             };
@@ -1756,7 +1969,35 @@ declare const SuiteSchema: z.ZodObject<{
                     path: z.ZodString;
                     headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
                     query: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>>>;
-                    body: z.ZodOptional<z.ZodAny>;
+                    /**
+                     * Back-compat + UX:
+                     * - body: { json: ... }  (preferred)
+                     * - body: { jsonFile: ... } (preferred)
+                     * - body: { text: ... } (preferred)
+                     * - body: { ... } (legacy direct JSON object allowed)
+                     * - body: "raw string" (legacy)
+                     */
+                    body: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodObject<{
+                        json: z.ZodOptional<z.ZodAny>;
+                        jsonFile: z.ZodOptional<z.ZodString>;
+                        text: z.ZodOptional<z.ZodString>;
+                    }, "strip", z.ZodTypeAny, {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    }, {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    }>, {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    }, {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    }>, z.ZodString, z.ZodRecord<z.ZodString, z.ZodAny>, z.ZodArray<z.ZodAny, "many">, z.ZodNumber, z.ZodBoolean, z.ZodNull]>>;
                     timeout_ms: z.ZodOptional<z.ZodNumber>;
                     retries: z.ZodOptional<z.ZodNumber>;
                 }, "strip", z.ZodTypeAny, {
@@ -1764,7 +2005,11 @@ declare const SuiteSchema: z.ZodObject<{
                     method: string;
                     headers?: Record<string, string> | undefined;
                     query?: Record<string, string | number | boolean> | undefined;
-                    body?: any;
+                    body?: string | number | boolean | any[] | Record<string, any> | {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    } | null | undefined;
                     timeout_ms?: number | undefined;
                     retries?: number | undefined;
                 }, {
@@ -1772,7 +2017,11 @@ declare const SuiteSchema: z.ZodObject<{
                     method: string;
                     headers?: Record<string, string> | undefined;
                     query?: Record<string, string | number | boolean> | undefined;
-                    body?: any;
+                    body?: string | number | boolean | any[] | Record<string, any> | {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    } | null | undefined;
                     timeout_ms?: number | undefined;
                     retries?: number | undefined;
                 }>;
@@ -1831,7 +2080,11 @@ declare const SuiteSchema: z.ZodObject<{
                     method: string;
                     headers?: Record<string, string> | undefined;
                     query?: Record<string, string | number | boolean> | undefined;
-                    body?: any;
+                    body?: string | number | boolean | any[] | Record<string, any> | {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    } | null | undefined;
                     timeout_ms?: number | undefined;
                     retries?: number | undefined;
                 };
@@ -1858,7 +2111,11 @@ declare const SuiteSchema: z.ZodObject<{
                     method: string;
                     headers?: Record<string, string> | undefined;
                     query?: Record<string, string | number | boolean> | undefined;
-                    body?: any;
+                    body?: string | number | boolean | any[] | Record<string, any> | {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    } | null | undefined;
                     timeout_ms?: number | undefined;
                     retries?: number | undefined;
                 };
@@ -2126,7 +2383,11 @@ declare const SuiteSchema: z.ZodObject<{
                     method: string;
                     headers?: Record<string, string> | undefined;
                     query?: Record<string, string | number | boolean> | undefined;
-                    body?: any;
+                    body?: string | number | boolean | any[] | Record<string, any> | {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    } | null | undefined;
                     timeout_ms?: number | undefined;
                     retries?: number | undefined;
                 };
@@ -2209,7 +2470,11 @@ declare const SuiteSchema: z.ZodObject<{
                     method: string;
                     headers?: Record<string, string> | undefined;
                     query?: Record<string, string | number | boolean> | undefined;
-                    body?: any;
+                    body?: string | number | boolean | any[] | Record<string, any> | {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    } | null | undefined;
                     timeout_ms?: number | undefined;
                     retries?: number | undefined;
                 };
@@ -2295,7 +2560,11 @@ declare const SuiteSchema: z.ZodObject<{
                     method: string;
                     headers?: Record<string, string> | undefined;
                     query?: Record<string, string | number | boolean> | undefined;
-                    body?: any;
+                    body?: string | number | boolean | any[] | Record<string, any> | {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    } | null | undefined;
                     timeout_ms?: number | undefined;
                     retries?: number | undefined;
                 };
@@ -2382,7 +2651,11 @@ declare const SuiteSchema: z.ZodObject<{
                     method: string;
                     headers?: Record<string, string> | undefined;
                     query?: Record<string, string | number | boolean> | undefined;
-                    body?: any;
+                    body?: string | number | boolean | any[] | Record<string, any> | {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    } | null | undefined;
                     timeout_ms?: number | undefined;
                     retries?: number | undefined;
                 };
@@ -2473,7 +2746,11 @@ declare const SuiteSchema: z.ZodObject<{
                     method: string;
                     headers?: Record<string, string> | undefined;
                     query?: Record<string, string | number | boolean> | undefined;
-                    body?: any;
+                    body?: string | number | boolean | any[] | Record<string, any> | {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    } | null | undefined;
                     timeout_ms?: number | undefined;
                     retries?: number | undefined;
                 };
@@ -2565,7 +2842,11 @@ declare const SuiteSchema: z.ZodObject<{
                     method: string;
                     headers?: Record<string, string> | undefined;
                     query?: Record<string, string | number | boolean> | undefined;
-                    body?: any;
+                    body?: string | number | boolean | any[] | Record<string, any> | {
+                        json?: any;
+                        jsonFile?: string | undefined;
+                        text?: string | undefined;
+                    } | null | undefined;
                     timeout_ms?: number | undefined;
                     retries?: number | undefined;
                 };
@@ -2653,4 +2934,4 @@ type ExecStep = z.infer<typeof ExecStepSchema>;
 type SqlStep = z.infer<typeof SqlStepSchema>;
 type Expectation = z.infer<typeof ExpectationSchema>;
 
-export { type Check, CheckSchema, ContractSchema, type ExecStep, ExecStepSchema, type Expectation, ExpectationSchema, type HttpStep, HttpStepSchema, type SqlStep, SqlStepSchema, type Step, StepSchema, type SuiteFileV1, SuiteSchema };
+export { type Check, CheckSchema, ContractSchema, type ExecStep, ExecStepSchema, type Expectation, ExpectationSchema, HttpBodySchema, type HttpStep, HttpStepSchema, type SqlStep, SqlStepSchema, type Step, StepSchema, type SuiteFileV1, SuiteSchema };
