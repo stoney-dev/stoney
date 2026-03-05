@@ -12,7 +12,6 @@ permissions:
 jobs:
   version_or_publish:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,8 +23,9 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: "@stoney-dev"
 
+      # IMPORTANT: do NOT set version here; let it respect root packageManager "pnpm@10.29.2"
       - uses: pnpm/action-setup@v4
-      
+
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
@@ -33,8 +33,9 @@ jobs:
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
-          # publish runs on main AFTER the version PR is merged
           publish: pnpm -C packages/runner publish --no-git-checks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ✅ Use PAT so PR creation is allowed even when Actions is blocked
+          GITHUB_TOKEN: ${{ secrets.CHANGESETS_TOKEN }}
+          # ✅ Publish auth (GitHub Packages)
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
