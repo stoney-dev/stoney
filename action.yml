@@ -1,4 +1,14 @@
 name: "Stoney"
+description: "Run Stoney contracts against a base URL and report failures in CI."
+inputs:
+  base_url: { description: "Base URL", required: false }
+  suite: { description: "Glob or file path", required: false, default: "contracts/*.yml" }
+  report: { description: "Report file path", required: false, default: "stoney-report.json" }
+  fail_fast: { description: "Stop on first failing check", required: false, default: "false" }
+  db_url: { description: "Postgres connection string", required: false }
+  require_work_item: { description: "Require work_item", required: false, default: "false" }
+  comment_pr: { description: "Post a PR comment", required: false, default: "true" }
+
 runs:
   using: "composite"
   steps:
@@ -6,10 +16,13 @@ runs:
       shell: bash
       env:
         STONEY_BASE_URL: ${{ inputs.base_url }}
+        STONEY_DB_URL: ${{ inputs.db_url }}
+        STONEY_REQUIRE_WORK_ITEM: ${{ inputs.require_work_item }}
       run: |
         node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
           --suite "${{ inputs.suite }}" \
-          --report "${{ github.workspace }}/${{ inputs.report }}"
+          --report "${{ github.workspace }}/${{ inputs.report }}" \
+          ${{ inputs.fail_fast == 'true' && '--fail-fast' || '' }}
 
     - name: Generate Job Summary
       if: always()
@@ -21,7 +34,7 @@ runs:
           const fs = require('fs');
           const reportPath = process.env.REPORT_PATH;
           
-          // CRITICAL FIX: Ensure we only attempt to read if it is a real file
+          // CRITICAL: EISDIR Fix - only read if it is a real file
           if (!fs.existsSync(reportPath) || !fs.lstatSync(reportPath).isFile()) {
             await core.summary.addRaw('⚠️ No report file found at ' + reportPath).write();
             return;
@@ -37,7 +50,9 @@ runs:
               ['Failed', report.failed.toString()],
               ['Total', report.total.toString()]
             ])
-            .addRaw('<br><i>Visualize trends and manage team requirements at <a href="https://stoneydev.com">Stoney Cloud</a></i>')
+            .addHeading('Results', 3)
+            .addRaw(report.results.map(r => `${r.ok ? '✅' : '❌'} **${r.id}** (${r.contract}): ${r.notes.join(', ')}`).join('<br>'))
+            .addRaw('<br><br><i>Explore historical trends at <a href="https://stoneydev.com">Stoney Cloud</a></i>')
             .write();
 
     - name: Upload Artifact
