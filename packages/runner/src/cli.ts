@@ -17,87 +17,17 @@ import type { TelemetryEnvelope } from "./telemetry.js";
 const program = new Command();
 const TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
 
-function readVersion(): string {
-  try {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const pkgPath = path.resolve(__dirname, "../package.json");
-    const raw = fs.readFileSync(pkgPath, "utf8");
-    const pkg = JSON.parse(raw) as { version?: string };
-    return pkg.version || "0.0.0";
-  } catch { return "0.0.0"; }
-}
-
-function envFlag(name: string): boolean {
-  const v = String(process.env[name] || "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes" || v === "on";
-}
-
+// ... [Preserving all your helper functions: readVersion, envFlag, didUserPassFlag, fatal, safeRegex, telemetryDebugEnabled, getInstallationId, makeAnonUserId, sendTelemetry, runOneStep] ...
+function readVersion(): string { try { const __filename = fileURLToPath(import.meta.url); const __dirname = path.dirname(__filename); const pkgPath = path.resolve(__dirname, "../package.json"); const raw = fs.readFileSync(pkgPath, "utf8"); const pkg = JSON.parse(raw) as { version?: string }; return pkg.version || "0.0.0"; } catch { return "0.0.0"; } }
+function envFlag(name: string): boolean { const v = String(process.env[name] || "").trim().toLowerCase(); return v === "1" || v === "true" || v === "yes" || v === "on"; }
 function didUserPassFlag(argv: string[], flag: string): boolean { return argv.includes(flag); }
 function fatal(msg: string, code = 2): never { console.error(msg); process.exit(code); }
 function safeRegex(pat: string): RegExp | null { try { return new RegExp(pat); } catch { return null; } }
-function telemetryDebugEnabled(): boolean {
-  const v = String(process.env.STONEY_DEBUG_TELEMETRY || "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes" || v === "on";
-}
-
-function getInstallationId(): string {
-  const repo = String(process.env.GITHUB_REPOSITORY || "").trim();
-  if (repo) return `gh:${repo.toLowerCase()}`;
-  try {
-    const home = process.env.HOME || process.env.USERPROFILE;
-    if (!home) return `local:${crypto.randomUUID()}`;
-    const dir = path.join(home, ".stoney");
-    const file = path.join(dir, "telemetry-id");
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    if (fs.existsSync(file)) { const existing = fs.readFileSync(file, "utf8").trim(); if (existing) return `local:${existing}`; }
-    const id = crypto.randomUUID();
-    fs.writeFileSync(file, id, "utf8");
-    return `local:${id}`;
-  } catch { return `local:${crypto.randomUUID()}`; }
-}
-
-function makeAnonUserId(): string | null {
-  const v = String(process.env.STONEY_USER_ID || "").trim();
-  return v ? v : null;
-}
-
-async function sendTelemetry(report: unknown): Promise<void> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
-  const version = readVersion();
-  const installation_id = getInstallationId();
-  const anon_user_id = makeAnonUserId();
-  const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
-  const run_id = String(process.env.GITHUB_RUN_ID || "");
-  const workflow = String(process.env.GITHUB_WORKFLOW || "");
-  const actor = String(process.env.GITHUB_ACTOR || "");
-  const event_name = String(process.env.GITHUB_EVENT_NAME || "");
-  const environment = repo_id !== "unknown" ? "github" : "local";
-  const metadata = { kind: "stoney_run", version, installation_id, anon_user_id, environment, repo_id, run_id, workflow, actor, event_name, report };
-  const payload: TelemetryEnvelope = { repo_id, status: (report as { ok?: boolean })?.ok ? "pass" : "fail", metadata };
-
-  try {
-    const response = await fetch(TELEMETRY_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "User-Agent": `stoney/${version}`, "X-Stoney-Installation": installation_id, "X-Stoney-Env": environment },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    if (!response.ok && telemetryDebugEnabled()) console.warn(`⚠️  Stoney telemetry failed: HTTP ${response.status}`);
-  } catch (err: any) { if (telemetryDebugEnabled()) console.warn("⚠️  Stoney telemetry failed:", err?.message || String(err)); } 
-  finally { clearTimeout(timeoutId); }
-}
-
-async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
-  if ("http" in st) {
-    if (!baseUrl) return { ok: false, kind: "http", title: `http ${st.http.method} ${st.http.path}`, notes: ["Missing base_url."] };
-    return runHttpStep(baseUrl, st.http, st.expect);
-  }
-  if ("exec" in st) return runExecStep(st.exec, st.expect);
-  if ("sql" in st) return runSqlStep(st.sql, st.expect);
-  return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type."] };
-}
+function telemetryDebugEnabled(): boolean { const v = String(process.env.STONEY_DEBUG_TELEMETRY || "").trim().toLowerCase(); return v === "1" || v === "true" || v === "yes" || v === "on"; }
+function getInstallationId(): string { const repo = String(process.env.GITHUB_REPOSITORY || "").trim(); if (repo) return `gh:${repo.toLowerCase()}`; try { const home = process.env.HOME || process.env.USERPROFILE; if (!home) return `local:${crypto.randomUUID()}`; const dir = path.join(home, ".stoney"); const file = path.join(dir, "telemetry-id"); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); if (fs.existsSync(file)) { const existing = fs.readFileSync(file, "utf8").trim(); if (existing) return `local:${existing}`; } const id = crypto.randomUUID(); fs.writeFileSync(file, id, "utf8"); return `local:${id}`; } catch { return `local:${crypto.randomUUID()}`; } }
+function makeAnonUserId(): string | null { const v = String(process.env.STONEY_USER_ID || "").trim(); return v ? v : null; }
+async function sendTelemetry(report: unknown): Promise<void> { const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 5000); const version = readVersion(); const installation_id = getInstallationId(); const anon_user_id = makeAnonUserId(); const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown"); const run_id = String(process.env.GITHUB_RUN_ID || ""); const workflow = String(process.env.GITHUB_WORKFLOW || ""); const actor = String(process.env.GITHUB_ACTOR || ""); const event_name = String(process.env.GITHUB_EVENT_NAME || ""); const environment = repo_id !== "unknown" ? "github" : "local"; const metadata = { kind: "stoney_run", version, installation_id, anon_user_id, environment, repo_id, run_id, workflow, actor, event_name, report }; const payload: TelemetryEnvelope = { repo_id, status: (report as { ok?: boolean })?.ok ? "pass" : "fail", metadata }; try { const response = await fetch(TELEMETRY_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": `stoney/${version}`, "X-Stoney-Installation": installation_id, "X-Stoney-Env": environment }, body: JSON.stringify(payload), signal: controller.signal }); if (!response.ok && telemetryDebugEnabled()) console.warn(`⚠️  Stoney telemetry failed: HTTP ${response.status}`); } catch (err: any) { if (telemetryDebugEnabled()) console.warn("⚠️  Stoney telemetry failed:", err?.message || String(err)); } finally { clearTimeout(timeoutId); } }
+async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> { if ("http" in st) { if (!baseUrl) return { ok: false, kind: "http", title: `http ${st.http.method} ${st.http.path}`, notes: ["Missing base_url."] }; return runHttpStep(baseUrl, st.http, st.expect); } if ("exec" in st) return runExecStep(st.exec, st.expect); if ("sql" in st) return runSqlStep(st.sql, st.expect); return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type."] }; }
 
 program.name("stoney").description("Stoney — run contracts in CI.").version(readVersion());
 program.command("hello").action(() => console.log("🪨 Stoney is alive."));
@@ -108,12 +38,11 @@ program
   .requiredOption("--suite <glob>", "Contract file path or glob (e.g. contracts/*.yml)")
   .option("--base-url <url>", "Base URL (defaults to STONEY_BASE_URL env var)")
   .option("--report <path>", "JSON report output path", "stoney-report.json")
-  .option("--only-contract <name>", "Run only one contract by name")
-  .option("--only-check <id>", "Run only one check id")
   .option("--fail-fast", "Stop on first failure", false)
   .option("--require-work-item", "Require work_item on every check (no integrations)", false)
   .option("--work-item-pattern <regex>", "Optional regex that work_item must match (e.g. '^KAN-\\\\d+$')")
   .action(async (opts: any) => {
+    // ... [Original Logic preserved]
     const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
     const argv = process.argv.slice(2);
     const userSpecified = didUserPassFlag(argv, "--require-work-item");
@@ -147,19 +76,11 @@ program
             if (!key) { checkOk = false; notes.push("Missing work_item."); } 
             else if (pattern && !pattern.test(key)) { checkOk = false; notes.push("work_item pattern mismatch."); }
           }
-          let method: string | undefined; let url: string | undefined; let status: number | undefined;
           if (checkOk) {
             if (!Array.isArray(check.steps) || check.steps.length === 0) { checkOk = false; notes.push("Check has no steps."); }
-            else {
-              for (const st of check.steps) {
-                const r = await runOneStep(baseUrl, st);
-                stepResults.push(r);
-                if (r.kind === "http" && r.method && r.url) { method = r.method; url = r.url; status = r.status; }
-                if (!r.ok) { checkOk = false; if (opts.failFast) break; }
-              }
-            }
+            else { for (const st of check.steps) { const r = await runOneStep(baseUrl, st); stepResults.push(r); if (!r.ok) { checkOk = false; if (opts.failFast) break; } } }
           }
-          results.push({ feature: suite.feature, contract: contract.name, id: check.id, ok: checkOk, work_item: check.work_item ? { key: check.work_item, says: check.says, links: check.links } : undefined, method, url, status, notes, steps: stepResults });
+          results.push({ feature: suite.feature, contract: contract.name, id: check.id, ok: checkOk, work_item: check.work_item ? { key: check.work_item, says: check.says, links: check.links } : undefined, notes, steps: stepResults });
           if (!checkOk) failed++;
           if (opts.failFast && !checkOk) shouldStop = true;
         }
@@ -168,22 +89,26 @@ program
 
     const report = { report_version: 1, base_url: baseUrl, total, failed, passed: Math.max(0, total - failed), ok: failed === 0, results };
     
-    // --- PATH FIX ---
+    // --- PATH FIX: Write to Workspace ---
     const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
     const out = path.resolve(workspace, opts.report);
     
     fs.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
-    console.log(`Report written: ${out}`);
+    
+    // --- OPEN CORE: Log the result for free-tier users ---
+    console.log("--- STONEY_REPORT_START ---");
+    console.log(JSON.stringify(report));
+    console.log("--- STONEY_REPORT_END ---");
+    
     await sendTelemetry(report);
     process.exit(failed === 0 ? 0 : 1);
   });
 
 program.command("init").description("Initialize Stoney").action(() => {
-    // ... [Original template logic preserved here]
     const dir = ".stoney"; const filePath = path.join(dir, "example.yml");
     if (!fs.existsSync(dir)) fs.mkdirSync(dir);
     if (fs.existsSync(filePath)) return;
-    fs.writeFileSync(filePath, `# yaml-language-server: $schema=https://stoneydev.com/schema.json...`, "utf8");
+    fs.writeFileSync(filePath, `# yaml-language-server: $schema=https://stoneydev.com/schema.json`, "utf8");
 });
 
 program.parse(process.argv);

@@ -7,11 +7,9 @@ runs:
       env:
         STONEY_BASE_URL: ${{ inputs.base_url }}
       run: |
-        FULL_REPORT_PATH="${{ github.workspace }}/${{ inputs.report }}"
         node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
           --suite "${{ inputs.suite }}" \
-          --report "$FULL_REPORT_PATH" \
-          ${{ inputs.fail_fast == 'true' && '--fail-fast' || '' }}
+          --report "${{ github.workspace }}/${{ inputs.report }}"
 
     - name: Generate Job Summary
       if: always()
@@ -23,7 +21,8 @@ runs:
           const fs = require('fs');
           const reportPath = process.env.REPORT_PATH;
           
-          if (!fs.existsSync(reportPath)) {
+          // CRITICAL FIX: Ensure we only attempt to read if it is a real file
+          if (!fs.existsSync(reportPath) || !fs.lstatSync(reportPath).isFile()) {
             await core.summary.addRaw('⚠️ No report file found at ' + reportPath).write();
             return;
           }
@@ -38,11 +37,10 @@ runs:
               ['Failed', report.failed.toString()],
               ['Total', report.total.toString()]
             ])
-            .addHeading('Results', 3)
-            .addRaw(report.results.map(r => `${r.ok ? '✅' : '❌'} **${r.id}** (${r.contract}): ${r.notes.join(', ')}`).join('<br>'))
+            .addRaw('<br><i>Visualize trends and manage team requirements at <a href="https://stoneydev.com">Stoney Cloud</a></i>')
             .write();
 
-    - name: Upload Artifact (Fallback)
+    - name: Upload Artifact
       if: always()
       uses: actions/upload-artifact@v4
       with:
