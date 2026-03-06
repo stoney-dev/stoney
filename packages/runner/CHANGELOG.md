@@ -1,5 +1,12 @@
 # @stoney-dev/stoney-runner
 
+## 0.1.6
+
+### Patch Changes
+
+- 5a30c92: update tsup
+- 5a30c92: yes
+
 ## 0.1.5
 
 ### Patch Changes
