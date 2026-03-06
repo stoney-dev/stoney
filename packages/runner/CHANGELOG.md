@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.1.11
+
+### Patch Changes
+
+- 9eb15d4: update the logger
+
 ## 0.1.10
 
 ### Patch Changes
