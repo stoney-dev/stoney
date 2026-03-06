@@ -1,5 +1,15 @@
 # @stoney-dev/stoney-runner
 
+## 0.2.0
+
+### Minor Changes
+
+- e117d22: final open core formatting upgrade
+
+### Patch Changes
+
+- 04d1282: update build
+
 ## 0.1.11
 
 ### Patch Changes
