@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.1.10
+
+### Patch Changes
+
+- 2d747cd: update pipeline
+
 ## 0.1.9
 
 ### Patch Changes
