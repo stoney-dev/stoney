@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.1.2
+
+### Patch Changes
+
+- d5c8d36: update changeset file from dir to c
+
 ## 0.1.1
 
 ### Patch Changes
