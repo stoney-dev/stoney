@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.1.9
+
+### Patch Changes
+
+- 18e448e: really need to fix my local testing setup
+
 ## 0.1.8
 
 ### Patch Changes
