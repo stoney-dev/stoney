@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.3.0
+
+### Minor Changes
+
+- ac286ce: add missing inputs
+
 ## 0.2.0
 
 ### Minor Changes
