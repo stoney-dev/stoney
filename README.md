@@ -236,16 +236,6 @@ work_item_pattern: "^KAN-\\d+$"
 
 No external integrations required in v1.
 
----
-
-# 🛡️ Security Model
-
-- Secrets are never stored in YAML
-- SQL writes are blocked by default
-- No external telemetry
-- Runs entirely inside your CI runner
-- Supports self-hosted runners for private networks
-
 # 📖 Documentation
 
 https://wwww.stoneydev.com
