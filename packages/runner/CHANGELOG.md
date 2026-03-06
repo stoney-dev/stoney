@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.1.7
+
+### Patch Changes
+
+- 3de7ade: update telemetry
+
 ## 0.1.6
 
 ### Patch Changes
