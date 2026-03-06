@@ -240,8 +240,6 @@ No external integrations required in v1.
 
 https://wwww.stoneydev.com
 
----
-
 # 🤝 Contributing
 
 PRs welcome.

@@ -16,7 +16,7 @@ export default defineConfig([
     sourcemap: false,
 
     // Bundle all runtime dependencies the CLI needs,
-    // because the GitHub Action does not run pnpm install.
+    // because the GitHub Action does not run pnpm install
     noExternal: [
       "commander",
       "fast-glob",
