@@ -246,26 +246,6 @@ No external integrations required in v1.
 - Runs entirely inside your CI runner
 - Supports self-hosted runners for private networks
 
----
-
-# 🏗️ Architecture
-
-Public staging:
-
-```
-GitHub Hosted Runner → Public API / DB
-```
-
-Private staging:
-
-```
-Self-Hosted Runner → Private API / DB
-```
-
-Stoney executes wherever your runner lives.
-
----
-
 # 📖 Documentation
 
 https://wwww.stoneydev.com
