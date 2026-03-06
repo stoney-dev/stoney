@@ -6,62 +6,26 @@ branding:
   color: "purple"
 
 inputs:
-  base_url:
-    description: "Base URL to run HTTP checks against"
-    required: false
-  suite:
-    description: "Glob or file path for contract files (e.g. contracts/*.yml)"
-    required: false
-    default: "contracts/*.yml"
-  token:
-    description: "Optional bearer token used by contracts via ${STONEY_TOKEN}"
-    required: false
-  timeout_ms:
-    description: "Request timeout in ms"
-    required: false
-    default: "15000"
-  retries:
-    description: "Retry count for HTTP requests"
-    required: false
-    default: "2"
-  fail_fast:
-    description: "Stop on first failing check (true/false)."
-    required: false
-    default: "false"
-  report:
-    description: "Report file path"
-    required: false
-    default: "stoney-report.json"
-  upload_artifact:
-    description: "Whether to upload the report as an artifact (true/false)"
-    required: false
-    default: "true"
-  artifact_name:
-    description: "Artifact name"
-    required: false
-    default: "stoney-report"
-  comment_pr:
-    description: "Post a PR comment summary"
-    required: false
-    default: "true"
-  require_work_item:
-    description: "Require work_item on every check (true/false). No external integrations."
-    required: false
-    default: "false"
-  work_item_pattern:
-    description: "Optional regex that work_item must match (e.g. ^KAN-\\d+$)"
-    required: false
-  db_url:
-    description: "Postgres connection string for SQL checks (STONEY_DB_URL)"
-    required: false
+  base_url: { description: "Base URL to run HTTP checks against", required: false }
+  suite: { description: "Glob or file path for contract files", required: false, default: "contracts/*.yml" }
+  token: { description: "Optional bearer token", required: false }
+  timeout_ms: { description: "Request timeout in ms", required: false, default: "15000" }
+  retries: { description: "Retry count", required: false, default: "2" }
+  fail_fast: { description: "Stop on first failing check", required: false, default: "false" }
+  report: { description: "Report file path", required: false, default: "stoney-report.json" }
+  upload_artifact: { description: "Upload report as artifact", required: false, default: "true" }
+  artifact_name: { description: "Artifact name", required: false, default: "stoney-report" }
+  comment_pr: { description: "Post a PR comment summary", required: false, default: "true" }
+  require_work_item: { description: "Require work_item on every check", required: false, default: "false" }
+  work_item_pattern: { description: "Regex pattern for work_item", required: false }
+  db_url: { description: "Postgres connection string", required: false }
 
 runs:
   using: "composite"
   steps:
     - name: Setup Node
       uses: actions/setup-node@v4
-      with:
-        node-version: 22
+      with: { node-version: 22 }
 
     - name: Run Stoney
       shell: bash
@@ -75,13 +39,9 @@ runs:
         STONEY_WORK_ITEM_PATTERN: ${{ inputs.work_item_pattern }}
       run: |
         set -euo pipefail
-
         CLI="${{ github.action_path }}/packages/runner/dist/cli.cjs"
-        if [ ! -f "$CLI" ]; then
-          echo "❌ Stoney action is missing built runner at $CLI"
-          exit 1
-        fi
-
+        if [ ! -f "$CLI" ]; then echo "❌ Missing built runner at $CLI"; exit 1; fi
+        
         ARGS=()
         if [ "${{ inputs.fail_fast }}" = "true" ]; then ARGS+=( --fail-fast ); fi
         if [ "${{ inputs.require_work_item }}" = "true" ]; then ARGS+=( --require-work-item ); fi
@@ -97,12 +57,13 @@ runs:
       if: always()
       shell: bash
       run: |
-        if [ -f "${{ inputs.report }}" ]; then
+        REPORT_PATH="${{ github.workspace }}/${{ inputs.report }}"
+        if [ -f "$REPORT_PATH" ]; then
           echo "::group::🪨 Stoney Report Data"
-          cat "${{ inputs.report }}"
+          cat "$REPORT_PATH"
           echo "::endgroup::"
         else
-          echo "⚠️ No report file found at ${{ inputs.report }}"
+          echo "⚠️ No report file found at $REPORT_PATH"
         fi
 
     - name: Upload report artifact
@@ -110,53 +71,41 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.artifact_name }}
-        path: ${{ inputs.report }}
+        path: ${{ github.workspace }}/${{ inputs.report }}
 
     - name: PR comment summary
       if: always() && inputs.comment_pr == 'true' && github.event_name == 'pull_request'
       uses: actions/github-script@v7
       env:
         INPUT_REPORT: ${{ inputs.report }}
-        INPUT_ARTIFACT_NAME: ${{ inputs.artifact_name }}
       with:
         script: |
           const fs = require("fs");
-          const reportPath = process.env.INPUT_REPORT || "stoney-report.json";
+          const path = require("path");
+          const reportPath = path.join(process.env.GITHUB_WORKSPACE, process.env.INPUT_REPORT);
           if (!fs.existsSync(reportPath)) return;
           
           const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
-          const total = report.total ?? 0;
-          const failed = report.failed ?? 0;
-          const passed = report.passed ?? 0;
-          const ok = !!report.ok;
-
           const marker = "";
-          const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-          const body =
-            `${marker}\n### 🪨 Stoney Report — ${ok ? "✅ PASS" : "❌ FAIL"}\n` +
-            `**${passed}/${total}** passed${failed ? ` · **${failed}** failed` : ""}\n\n` +
+          const body = `${marker}\n### 🪨 Stoney Report — ${report.ok ? "✅ PASS" : "❌ FAIL"}\n` +
+            `**${report.passed}/${report.total}** passed${report.failed ? ` · **${report.failed}** failed` : ""}\n\n` +
             `- **Base URL:** ${report.base_url ? `\`${report.base_url}\`` : "_(not set)_"}\n` +
-            `- [View Workflow Run](${runUrl})\n`;
+            `- [View Workflow Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n`;
 
           const { data: comments } = await github.rest.issues.listComments({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
+            owner: context.repo.owner, repo: context.repo.repo,
             issue_number: context.payload.pull_request.number,
           });
           
           const existing = comments.find((c) => (c.body || "").includes(marker));
           if (existing) {
             await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: existing.id,
-              body
+              owner: context.repo.owner, repo: context.repo.repo,
+              comment_id: existing.id, body
             });
           } else {
             await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number, body
             });
           }

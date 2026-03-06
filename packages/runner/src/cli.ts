@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import fg from "fast-glob";
 import { Command } from "commander";
 import { fileURLToPath } from "node:url";
+
 import { runSqlStep } from "./sql.js";
 import { loadSuite } from "./contract.js";
 import type { SuiteFileV1, Step, Check } from "./schema.js";
@@ -56,11 +57,6 @@ function telemetryDebugEnabled(): boolean {
   return v === "1" || v === "true" || v === "yes" || v === "on";
 }
 
-/**
- * Stable install-ish id so you can count unique usage without asking users for anything.
- * - In GitHub, use owner/repo as the stable key.
- * - Locally, store a random id in ~/.stoney/telemetry-id.
- */
 function getInstallationId(): string {
   const repo = String(process.env.GITHUB_REPOSITORY || "").trim();
   if (repo) return `gh:${repo.toLowerCase()}`;
@@ -68,17 +64,13 @@ function getInstallationId(): string {
   try {
     const home = process.env.HOME || process.env.USERPROFILE;
     if (!home) return `local:${crypto.randomUUID()}`;
-
     const dir = path.join(home, ".stoney");
     const file = path.join(dir, "telemetry-id");
-
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
     if (fs.existsSync(file)) {
       const existing = fs.readFileSync(file, "utf8").trim();
       if (existing) return `local:${existing}`;
     }
-
     const id = crypto.randomUUID();
     fs.writeFileSync(file, id, "utf8");
     return `local:${id}`;
@@ -95,62 +87,28 @@ function makeAnonUserId(): string | null {
 async function sendTelemetry(report: unknown): Promise<void> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000);
-
   const version = readVersion();
   const installation_id = getInstallationId();
   const anon_user_id = makeAnonUserId();
-
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
   const run_id = String(process.env.GITHUB_RUN_ID || "");
   const workflow = String(process.env.GITHUB_WORKFLOW || "");
   const actor = String(process.env.GITHUB_ACTOR || "");
   const event_name = String(process.env.GITHUB_EVENT_NAME || "");
   const environment = repo_id !== "unknown" ? "github" : "local";
-
-  const metadata = {
-    kind: "stoney_run",
-    version,
-    installation_id,
-    anon_user_id,
-    environment,
-    repo_id,
-    run_id,
-    workflow,
-    actor,
-    event_name,
-    report,
-  };
-
-  const payload: TelemetryEnvelope = {
-    repo_id,
-    status: (report as { ok?: boolean })?.ok ? "pass" : "fail",
-    metadata,
-  };
+  const metadata = { kind: "stoney_run", version, installation_id, anon_user_id, environment, repo_id, run_id, workflow, actor, event_name, report };
+  const payload: TelemetryEnvelope = { repo_id, status: (report as { ok?: boolean })?.ok ? "pass" : "fail", metadata };
 
   try {
     const response = await fetch(TELEMETRY_ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": `stoney/${version}`,
-        "X-Stoney-Installation": installation_id,
-        "X-Stoney-Env": environment,
-      },
+      headers: { "Content-Type": "application/json", "User-Agent": `stoney/${version}`, "X-Stoney-Installation": installation_id, "X-Stoney-Env": environment },
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
-
-    if (!response.ok && telemetryDebugEnabled()) {
-      console.warn(`⚠️  Stoney telemetry failed: HTTP ${response.status}`);
-    }
+    if (!response.ok && telemetryDebugEnabled()) console.warn(`⚠️  Stoney telemetry failed: HTTP ${response.status}`);
   } catch (err: any) {
-    if (telemetryDebugEnabled()) {
-      if (err?.name === "AbortError") {
-        console.warn("⚠️  Stoney telemetry timed out (5s).");
-      } else {
-        console.warn("⚠️  Stoney telemetry failed:", err?.message || String(err));
-      }
-    }
+    if (telemetryDebugEnabled()) console.warn("⚠️  Stoney telemetry failed:", err?.message || String(err));
   } finally {
     clearTimeout(timeoutId);
   }
@@ -158,14 +116,7 @@ async function sendTelemetry(report: unknown): Promise<void> {
 
 async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
   if ("http" in st) {
-    if (!baseUrl) {
-      return {
-        ok: false,
-        kind: "http",
-        title: `http ${st.http.method} ${st.http.path}`,
-        notes: ["Missing base_url."],
-      };
-    }
+    if (!baseUrl) return { ok: false, kind: "http", title: `http ${st.http.method} ${st.http.path}`, notes: ["Missing base_url."] };
     return runHttpStep(baseUrl, st.http, st.expect);
   }
   if ("exec" in st) return runExecStep(st.exec, st.expect);
@@ -198,10 +149,8 @@ program
   .action(async (opts: any) => {
     const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
     const argv = process.argv.slice(2);
-
     const userSpecified = didUserPassFlag(argv, "--require-work-item");
     const requireWorkItem = userSpecified ? Boolean(opts.requireWorkItem) : envFlag("STONEY_REQUIRE_WORK_ITEM");
-
     const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
     const pattern = patternRaw ? safeRegex(patternRaw) : null;
 
@@ -212,131 +161,64 @@ program
 
     const suites: SuiteFileV1[] = [];
     for (const p of suitePaths) {
-      try {
-        suites.push(loadSuite(p));
-      } catch (e: any) {
-        fatal(`Contract parse error in "${p}": ${e?.message || String(e)}`);
-      }
+      try { suites.push(loadSuite(p)); } catch (e: any) { fatal(`Contract parse error in "${p}": ${e?.message || String(e)}`); }
     }
 
-    let failed = 0;
-    let total = 0;
+    let failed = 0; let total = 0;
     const results: Array<{ feature: string; contract: string } & ScenarioResult> = [];
-
-    console.log(`\n🪨 Stoney run`);
-    console.log(`base_url: ${baseUrl ? baseUrl : "(not set)"}`);
-    console.log(`Files loaded: ${suites.length}`);
-    console.log("");
+    console.log(`\n🪨 Stoney run\nbase_url: ${baseUrl ? baseUrl : "(not set)"}\nFiles loaded: ${suites.length}\n`);
 
     let shouldStop = false;
-
     for (const suite of suites) {
       if (shouldStop) break;
-
       for (const contract of suite.contracts) {
         if (shouldStop) break;
         if (opts.onlyContract && contract.name !== opts.onlyContract) continue;
-
         for (const check of contract.checks as unknown as Check[]) {
           if (shouldStop) break;
           if (opts.onlyCheck && check.id !== opts.onlyCheck) continue;
-
           total++;
-          let checkOk = true;
-          const notes: string[] = [];
-          const stepResults: StepResult[] = [];
-
+          let checkOk = true; const notes: string[] = []; const stepResults: StepResult[] = [];
           if (requireWorkItem) {
             const key = String(check.work_item || "").trim();
-            if (!key) {
-              checkOk = false;
-              notes.push("Missing work_item.");
-            } else if (pattern && !pattern.test(key)) {
-              checkOk = false;
-              notes.push("work_item pattern mismatch.");
-            }
+            if (!key) { checkOk = false; notes.push("Missing work_item."); } 
+            else if (pattern && !pattern.test(key)) { checkOk = false; notes.push("work_item pattern mismatch."); }
           }
-
-          let method: string | undefined;
-          let url: string | undefined;
-          let status: number | undefined;
-
+          let method: string | undefined; let url: string | undefined; let status: number | undefined;
           if (checkOk) {
-            if (!Array.isArray(check.steps) || check.steps.length === 0) {
-              checkOk = false;
-              notes.push("Check has no steps.");
-            } else {
+            if (!Array.isArray(check.steps) || check.steps.length === 0) { checkOk = false; notes.push("Check has no steps."); }
+            else {
               for (const st of check.steps) {
                 const r = await runOneStep(baseUrl, st);
                 stepResults.push(r);
-                if (r.kind === "http" && r.method && r.url) {
-                  method = r.method;
-                  url = r.url;
-                  status = r.status;
-                }
-                if (!r.ok) {
-                  checkOk = false;
-                  if (opts.failFast) break;
-                }
+                if (r.kind === "http" && r.method && r.url) { method = r.method; url = r.url; status = r.status; }
+                if (!r.ok) { checkOk = false; if (opts.failFast) break; }
               }
             }
           }
-
-          results.push({
-            feature: suite.feature,
-            contract: contract.name,
-            id: check.id,
-            ok: checkOk,
-            work_item: check.work_item
-              ? { key: check.work_item, says: check.says, links: check.links }
-              : undefined,
-            method,
-            url,
-            status,
-            notes,
-            steps: stepResults,
-          });
-
+          results.push({ feature: suite.feature, contract: contract.name, id: check.id, ok: checkOk, work_item: check.work_item ? { key: check.work_item, says: check.says, links: check.links } : undefined, method, url, status, notes, steps: stepResults });
           if (!checkOk) failed++;
           if (opts.failFast && !checkOk) shouldStop = true;
         }
       }
     }
 
-    const report = {
-      report_version: 1,
-      base_url: baseUrl,
-      total,
-      failed,
-      passed: Math.max(0, total - failed),
-      ok: failed === 0,
-      results,
-    };
-
-    const out = path.resolve(process.cwd(), opts.report);
+    const report = { report_version: 1, base_url: baseUrl, total, failed, passed: Math.max(0, total - failed), ok: failed === 0, results };
+    
+    // FIX: Force output to workspace if in CI, otherwise use CWD
+    const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
+    const out = path.resolve(workspace, opts.report);
+    
     fs.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
     console.log(`Report written: ${out}`);
-
-    // Fire-and-forget semantics from the user's perspective.
     await sendTelemetry(report);
-
     process.exit(failed === 0 ? 0 : 1);
   });
 
-program
-  .command("init")
-  .description("Initialize Stoney in your project (creates a sample contract)")
-  .action(() => {
-    const dir = ".stoney";
-    const filePath = path.join(dir, "example.yml");
-
+program.command("init").description("Initialize Stoney in your project (creates a sample contract)").action(() => {
+    const dir = ".stoney"; const filePath = path.join(dir, "example.yml");
     if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-
-    if (fs.existsSync(filePath)) {
-      console.log(`⚠️  File already exists: ${filePath}`);
-      return;
-    }
-
+    if (fs.existsSync(filePath)) { console.log(`⚠️  File already exists: ${filePath}`); return; }
     const template = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
 version: 1
 feature: "Stoney Health Check"
@@ -354,10 +236,8 @@ contracts:
             expect:
               status: 200
 `;
-
     fs.writeFileSync(filePath, template, "utf8");
-    console.log(`✅ Initialized Stoney!`);
-    console.log(`   Created: ${filePath}`);
-  });
+    console.log(`✅ Initialized Stoney!\n   Created: ${filePath}`);
+});
 
 program.parse(process.argv);
