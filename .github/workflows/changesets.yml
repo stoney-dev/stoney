@@ -33,10 +33,7 @@ jobs:
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
-          publish: pnpm -C packages/runner publish --no-git-checks
+          publish: pnpm publish:runner
         env:
-          # PAT for PR creation (because repo blocks default GITHUB_TOKEN from creating PRs)
           GITHUB_TOKEN: ${{ secrets.CHANGESETS_TOKEN }}
-
-          # GitHub Packages publish auth
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -10,7 +10,8 @@
     "release:patch": "gh workflow run Release -f bump=patch",
     "release:minor": "gh workflow run Release -f bump=minor",
     "release:major": "gh workflow run Release -f bump=major",
-    "check:runner-dist": "pnpm -C packages/runner build && git diff --exit-code packages/runner/dist"
+    "check:runner-dist": "pnpm -C packages/runner build && git diff --exit-code packages/runner/dist",
+    "publish:runner": "cd packages/runner && pnpm publish --no-git-checks"
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0"
