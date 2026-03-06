@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.1.3
+
+### Patch Changes
+
+- 240fe48: small smol
+
 ## 0.1.2
 
 ### Patch Changes
