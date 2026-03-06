@@ -12,20 +12,15 @@ import type { SuiteFileV1, Step, Check } from "./schema.js";
 import type { ScenarioResult, StepResult } from "./types.js";
 import { runHttpStep } from "./http.js";
 import { runExecStep } from "./exec.js";
-import { TelemetryEnvelope } from "./telemetry.js";
+import type { TelemetryEnvelope } from "./telemetry.js";
 
 const program = new Command();
-
-// IMPORTANT: hardcoded telemetry endpoint (no user config)
 const TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
 
 function readVersion(): string {
   try {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-
-    // In dist bundle, this file lives in packages/runner/dist/cli.cjs
-    // package.json is at packages/runner/package.json
     const pkgPath = path.resolve(__dirname, "../package.json");
     const raw = fs.readFileSync(pkgPath, "utf8");
     const pkg = JSON.parse(raw) as { version?: string };
@@ -57,10 +52,15 @@ function safeRegex(pat: string): RegExp | null {
   }
 }
 
+function telemetryDebugEnabled(): boolean {
+  const v = String(process.env.STONEY_DEBUG_TELEMETRY || "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+}
+
 /**
- * A stable install-ish id so you can count unique usage without asking users for anything.
- * - In GitHub, use owner/repo as the stable key (one “installation” per repo).
- * - Locally, store a random id in ~/.stoney/telemetry-id so it stays stable on that machine.
+ * Stable install-ish id so you can count unique usage without asking users for anything.
+ * - In GitHub, use owner/repo as the stable key.
+ * - Locally, store a random id in ~/.stoney/telemetry-id.
  */
 function getInstallationId(): string {
   const repo = String(process.env.GITHUB_REPOSITORY || "").trim();
@@ -89,12 +89,11 @@ function getInstallationId(): string {
 }
 
 function makeAnonUserId(): string | null {
-  // Optional: allow an explicit anon user id (e.g., action sets it)
   const v = String(process.env.STONEY_USER_ID || "").trim();
   return v ? v : null;
 }
 
-async function sendTelemetry(report: any) {
+async function sendTelemetry(report: unknown): Promise<void> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -107,7 +106,6 @@ async function sendTelemetry(report: any) {
   const workflow = String(process.env.GITHUB_WORKFLOW || "");
   const actor = String(process.env.GITHUB_ACTOR || "");
   const event_name = String(process.env.GITHUB_EVENT_NAME || "");
-
   const environment = repo_id !== "unknown" ? "github" : "local";
 
   const metadata = {
@@ -126,7 +124,7 @@ async function sendTelemetry(report: any) {
 
   const payload: TelemetryEnvelope = {
     repo_id,
-    status: report?.ok ? "pass" : "fail",
+    status: (report as { ok?: boolean })?.ok ? "pass" : "fail",
     metadata,
   };
 
@@ -136,7 +134,6 @@ async function sendTelemetry(report: any) {
       headers: {
         "Content-Type": "application/json",
         "User-Agent": `stoney/${version}`,
-        // Helpful server-side for filtering/debugging:
         "X-Stoney-Installation": installation_id,
         "X-Stoney-Env": environment,
       },
@@ -144,13 +141,16 @@ async function sendTelemetry(report: any) {
       signal: controller.signal,
     });
 
-    if (!response.ok) throw new Error(`Telemetry HTTP ${response.status}`);
+    if (!response.ok && telemetryDebugEnabled()) {
+      console.warn(`⚠️  Stoney telemetry failed: HTTP ${response.status}`);
+    }
   } catch (err: any) {
-    // Never fail a run because telemetry failed.
-    if (err?.name === "AbortError") {
-      console.warn("⚠️  Stoney telemetry timed out (5s).");
-    } else {
-      console.warn("⚠️  Stoney telemetry failed:", err?.message || String(err));
+    if (telemetryDebugEnabled()) {
+      if (err?.name === "AbortError") {
+        console.warn("⚠️  Stoney telemetry timed out (5s).");
+      } else {
+        console.warn("⚠️  Stoney telemetry failed:", err?.message || String(err));
+      }
     }
   } finally {
     clearTimeout(timeoutId);
@@ -251,10 +251,10 @@ program
             const key = String(check.work_item || "").trim();
             if (!key) {
               checkOk = false;
-              notes.push(`Missing work_item.`);
+              notes.push("Missing work_item.");
             } else if (pattern && !pattern.test(key)) {
               checkOk = false;
-              notes.push(`work_item pattern mismatch.`);
+              notes.push("work_item pattern mismatch.");
             }
           }
 
@@ -288,7 +288,9 @@ program
             contract: contract.name,
             id: check.id,
             ok: checkOk,
-            work_item: check.work_item ? { key: check.work_item, says: check.says, links: check.links } : undefined,
+            work_item: check.work_item
+              ? { key: check.work_item, says: check.says, links: check.links }
+              : undefined,
             method,
             url,
             status,
@@ -316,7 +318,7 @@ program
     fs.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
     console.log(`Report written: ${out}`);
 
-    // --- TELEMETRY (always-on) ---
+    // Fire-and-forget semantics from the user's perspective.
     await sendTelemetry(report);
 
     process.exit(failed === 0 ? 0 : 1);
