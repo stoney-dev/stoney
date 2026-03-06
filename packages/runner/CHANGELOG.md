@@ -1,5 +1,12 @@
 # @stoney-dev/stoney-runner
 
+## 0.1.8
+
+### Patch Changes
+
+- 8422b0c: update cli file
+- 8422b0c: update sql and logger in cli
+
 ## 0.1.7
 
 ### Patch Changes
