@@ -5,6 +5,10 @@
   "type": "module",
   "main": "./dist/schema.js",
   "types": "./dist/schema.d.ts",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "exports": {
     "./schema": {
       "import": "./dist/schema.js",
