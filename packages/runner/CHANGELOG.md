@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.1.5
+
+### Patch Changes
+
+- bb060eb: tinytiny
+
 ## 0.1.4
 
 ### Patch Changes
