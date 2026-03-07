@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.4.0
+
+### Minor Changes
+
+- 443aab4: update cli reporting
+
 ## 0.3.0
 
 ### Minor Changes
