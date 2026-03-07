@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.29.2",
   "scripts": {
+    "tag:sync": "git tag -f v1 && git push origin v1 --force",
     "dev:stoney": "pnpm -C packages/runner dev",
     "build": "pnpm -C packages/runner build",
     "build:runner": "pnpm -C packages/runner build",

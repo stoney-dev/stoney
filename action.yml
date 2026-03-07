@@ -1,18 +1,62 @@
 name: "Stoney Requirements-as-Code"
 description: "Run Stoney contracts against a base URL and report failures in CI."
+
 inputs:
-  base_url: { description: "Base URL", required: false }
-  suite: { description: "Glob or file path", required: false, default: "contracts/*.yml" }
-  token: { description: "Bearer token", required: false }
-  timeout_ms: { description: "Request timeout", required: false, default: "15000" }
-  retries: { description: "Retry count", required: false, default: "2" }
-  fail_fast: { description: "Stop on failure", required: false, default: "false" }
-  report: { description: "Report path", required: false, default: "stoney-report.json" }
-  artifact_name: { description: "Artifact name", required: false, default: "stoney-report" }
-  comment_pr: { description: "Post PR comment", required: false, default: "true" }
-  require_work_item: { description: "Require work_item", required: false, default: "false" }
-  work_item_pattern: { description: "Regex for work_item", required: false }
-  db_url: { description: "DB connection string", required: false }
+  base_url:
+    description: "Base URL"
+    required: false
+
+  suite:
+    description: "Glob or file path"
+    required: false
+    default: "contracts/*.yml"
+
+  token:
+    description: "Bearer token"
+    required: false
+
+  timeout_ms:
+    description: "Request timeout"
+    required: false
+    default: "15000"
+
+  retries:
+    description: "Retry count"
+    required: false
+    default: "2"
+
+  fail_fast:
+    description: "Stop on failure"
+    required: false
+    default: "false"
+
+  report:
+    description: "Report path"
+    required: false
+    default: "stoney-report.json"
+
+  artifact_name:
+    description: "Artifact name"
+    required: false
+    default: "stoney-report"
+
+  comment_pr:
+    description: "Post PR comment"
+    required: false
+    default: "true"
+
+  require_work_item:
+    description: "Require work_item"
+    required: false
+    default: "false"
+
+  work_item_pattern:
+    description: "Regex for work_item.key"
+    required: false
+
+  db_url:
+    description: "DB connection string"
+    required: false
 
 runs:
   using: "composite"
@@ -32,8 +76,7 @@ runs:
           --suite "${{ inputs.suite }}" \
           --report "${{ github.workspace }}/${{ inputs.report }}" \
           ${{ inputs.fail_fast == 'true' && '--fail-fast' || '' }} \
-          ${{ inputs.require_work_item == 'true' && '--require-work-item' || '' }} \
-          ${{ inputs.work_item_pattern != '' && format('--work-item-pattern {0}', inputs.work_item_pattern) || '' }}
+          ${{ inputs.require_work_item == 'true' && '--require-work-item' || '' }}
 
     - name: Generate Job Summary
       if: always()
@@ -42,19 +85,30 @@ runs:
         REPORT_PATH: ${{ github.workspace }}/${{ inputs.report }}
       with:
         script: |
-          const fs = require('fs');
+          const fs = require("fs");
           const reportPath = process.env.REPORT_PATH;
-          // EISDIR Fix: Only read if it exists AND is a file
+
           if (!fs.existsSync(reportPath) || !fs.lstatSync(reportPath).isFile()) {
-            await core.summary.addRaw('⚠️ No report file found at ' + reportPath).write();
+            await core.summary.addRaw("⚠️ No report file found at " + reportPath).write();
             return;
           }
-          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+
+          const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+
           await core.summary
             .addHeading(`🪨 Stoney Report — ${report.ok ? "✅ PASS" : "❌ FAIL"}`)
-            .addTable([['Metric', 'Value'], ['Passed', report.passed.toString()], ['Failed', report.failed.toString()], ['Total', report.total.toString()]])
-            .addHeading('Results', 3)
-            .addRaw(report.results.map(r => `${r.ok ? '✅' : '❌'} **${r.id}** (${r.contract}): ${r.notes.join(', ')}`).join('<br>'))
+            .addTable([
+              [{ data: "Metric", header: true }, { data: "Value", header: true }],
+              ["Passed", String(report.passed)],
+              ["Failed", String(report.failed)],
+              ["Total", String(report.total)],
+            ])
+            .addHeading("Results", 3)
+            .addRaw(
+              report.results
+                .map((r) => `${r.ok ? "✅" : "❌"} **${r.id}** (${r.contract}): ${r.notes.join(", ") || "No notes"}`)
+                .join("<br>")
+            )
             .addRaw('<br><br><i>View detailed trends at <a href="https://stoneydev.com">Stoney Cloud</a></i>')
             .write();
 

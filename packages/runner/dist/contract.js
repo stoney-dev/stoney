@@ -66,20 +66,17 @@ var HttpStepSchema = z.object({
   query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
   /**
    * Back-compat + UX:
-   * - body: { json: ... }  (preferred)
-   * - body: { jsonFile: ... } (preferred)
-   * - body: { text: ... } (preferred)
-   * - body: { ... } (legacy direct JSON object allowed)
-   * - body: "raw string" (legacy)
+   * - body: { json: ... }      (preferred)
+   * - body: { jsonFile: ... }  (preferred)
+   * - body: { text: ... }      (preferred)
+   * - body: { ... }            (legacy direct JSON object allowed)
+   * - body: "raw string"       (legacy)
    */
   body: z.union([
     HttpBodySchema,
     z.string(),
-    // legacy raw string
     z.record(z.string(), z.any()),
-    // legacy JSON object
     z.array(z.any()),
-    // legacy JSON array
     z.number(),
     z.boolean(),
     z.null()
@@ -106,9 +103,32 @@ var StepSchema = z.union([
   z.object({ exec: ExecStepSchema, expect: ExpectationSchema.optional() }),
   z.object({ sql: SqlStepSchema, expect: ExpectationSchema.optional() })
 ]);
+var WorkItemObjectSchema = z.object({
+  key: z.string(),
+  says: z.string().optional(),
+  links: z.array(z.string()).optional()
+});
+var WorkItemSchema = z.union([z.string(), WorkItemObjectSchema]);
 var CheckSchema = z.object({
   id: z.string(),
-  work_item: z.string().optional(),
+  /**
+   * Supported forms:
+   *
+   * 1) Simple:
+   *    work_item: "KAN-123"
+   *    says: "..."
+   *    links: ["..."]
+   *
+   * 2) Structured:
+   *    work_item:
+   *      key: "KAN-123"
+   *      says: "..."
+   *      links: ["..."]
+   *
+   * Top-level says/links remain supported for backward compatibility
+   * and can be used as fallbacks when work_item is a string.
+   */
+  work_item: WorkItemSchema.optional(),
   says: z.string().optional(),
   links: z.array(z.string()).optional(),
   steps: z.array(StepSchema).min(1)
@@ -150,5 +170,7 @@ export {
   SqlStepSchema,
   StepSchema,
   SuiteSchema,
+  WorkItemObjectSchema,
+  WorkItemSchema,
   loadSuite
 };

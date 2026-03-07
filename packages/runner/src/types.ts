@@ -1,4 +1,3 @@
-// packages/runner/src/types.ts
 export type StepKind = "http" | "exec" | "sql";
 
 export type StepResultBase = {
@@ -40,14 +39,10 @@ export type WorkItemRef = {
 export type ScenarioResult = {
   id: string;
   ok: boolean;
-
-  // optional unless require_work_item is enabled
   work_item?: WorkItemRef;
-
   method?: string;
   url?: string;
   status?: number;
-
   notes: string[];
   steps: StepResult[];
 };

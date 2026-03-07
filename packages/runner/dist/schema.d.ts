@@ -77,11 +77,11 @@ declare const HttpStepSchema: z.ZodObject<{
     query: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>>>;
     /**
      * Back-compat + UX:
-     * - body: { json: ... }  (preferred)
-     * - body: { jsonFile: ... } (preferred)
-     * - body: { text: ... } (preferred)
-     * - body: { ... } (legacy direct JSON object allowed)
-     * - body: "raw string" (legacy)
+     * - body: { json: ... }      (preferred)
+     * - body: { jsonFile: ... }  (preferred)
+     * - body: { text: ... }      (preferred)
+     * - body: { ... }            (legacy direct JSON object allowed)
+     * - body: "raw string"       (legacy)
      */
     body: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodObject<{
         json: z.ZodOptional<z.ZodAny>;
@@ -177,11 +177,11 @@ declare const StepSchema: z.ZodUnion<[z.ZodObject<{
         query: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>>>;
         /**
          * Back-compat + UX:
-         * - body: { json: ... }  (preferred)
-         * - body: { jsonFile: ... } (preferred)
-         * - body: { text: ... } (preferred)
-         * - body: { ... } (legacy direct JSON object allowed)
-         * - body: "raw string" (legacy)
+         * - body: { json: ... }      (preferred)
+         * - body: { jsonFile: ... }  (preferred)
+         * - body: { text: ... }      (preferred)
+         * - body: { ... }            (legacy direct JSON object allowed)
+         * - body: "raw string"       (legacy)
          */
         body: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodObject<{
             json: z.ZodOptional<z.ZodAny>;
@@ -581,9 +581,64 @@ declare const StepSchema: z.ZodUnion<[z.ZodObject<{
         equals?: Record<string, any> | undefined;
     } | undefined;
 }>]>;
+declare const WorkItemObjectSchema: z.ZodObject<{
+    key: z.ZodString;
+    says: z.ZodOptional<z.ZodString>;
+    links: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+}, "strip", z.ZodTypeAny, {
+    key: string;
+    says?: string | undefined;
+    links?: string[] | undefined;
+}, {
+    key: string;
+    says?: string | undefined;
+    links?: string[] | undefined;
+}>;
+declare const WorkItemSchema: z.ZodUnion<[z.ZodString, z.ZodObject<{
+    key: z.ZodString;
+    says: z.ZodOptional<z.ZodString>;
+    links: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+}, "strip", z.ZodTypeAny, {
+    key: string;
+    says?: string | undefined;
+    links?: string[] | undefined;
+}, {
+    key: string;
+    says?: string | undefined;
+    links?: string[] | undefined;
+}>]>;
 declare const CheckSchema: z.ZodObject<{
     id: z.ZodString;
-    work_item: z.ZodOptional<z.ZodString>;
+    /**
+     * Supported forms:
+     *
+     * 1) Simple:
+     *    work_item: "KAN-123"
+     *    says: "..."
+     *    links: ["..."]
+     *
+     * 2) Structured:
+     *    work_item:
+     *      key: "KAN-123"
+     *      says: "..."
+     *      links: ["..."]
+     *
+     * Top-level says/links remain supported for backward compatibility
+     * and can be used as fallbacks when work_item is a string.
+     */
+    work_item: z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodObject<{
+        key: z.ZodString;
+        says: z.ZodOptional<z.ZodString>;
+        links: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        key: string;
+        says?: string | undefined;
+        links?: string[] | undefined;
+    }, {
+        key: string;
+        says?: string | undefined;
+        links?: string[] | undefined;
+    }>]>>;
     says: z.ZodOptional<z.ZodString>;
     links: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     steps: z.ZodArray<z.ZodUnion<[z.ZodObject<{
@@ -594,11 +649,11 @@ declare const CheckSchema: z.ZodObject<{
             query: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>>>;
             /**
              * Back-compat + UX:
-             * - body: { json: ... }  (preferred)
-             * - body: { jsonFile: ... } (preferred)
-             * - body: { text: ... } (preferred)
-             * - body: { ... } (legacy direct JSON object allowed)
-             * - body: "raw string" (legacy)
+             * - body: { json: ... }      (preferred)
+             * - body: { jsonFile: ... }  (preferred)
+             * - body: { text: ... }      (preferred)
+             * - body: { ... }            (legacy direct JSON object allowed)
+             * - body: "raw string"       (legacy)
              */
             body: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodObject<{
                 json: z.ZodOptional<z.ZodAny>;
@@ -1082,9 +1137,13 @@ declare const CheckSchema: z.ZodObject<{
             equals?: Record<string, any> | undefined;
         } | undefined;
     })[];
-    work_item?: string | undefined;
     says?: string | undefined;
     links?: string[] | undefined;
+    work_item?: string | {
+        key: string;
+        says?: string | undefined;
+        links?: string[] | undefined;
+    } | undefined;
 }, {
     id: string;
     steps: ({
@@ -1169,16 +1228,49 @@ declare const CheckSchema: z.ZodObject<{
             equals?: Record<string, any> | undefined;
         } | undefined;
     })[];
-    work_item?: string | undefined;
     says?: string | undefined;
     links?: string[] | undefined;
+    work_item?: string | {
+        key: string;
+        says?: string | undefined;
+        links?: string[] | undefined;
+    } | undefined;
 }>;
 declare const ContractSchema: z.ZodObject<{
     name: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
     checks: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
-        work_item: z.ZodOptional<z.ZodString>;
+        /**
+         * Supported forms:
+         *
+         * 1) Simple:
+         *    work_item: "KAN-123"
+         *    says: "..."
+         *    links: ["..."]
+         *
+         * 2) Structured:
+         *    work_item:
+         *      key: "KAN-123"
+         *      says: "..."
+         *      links: ["..."]
+         *
+         * Top-level says/links remain supported for backward compatibility
+         * and can be used as fallbacks when work_item is a string.
+         */
+        work_item: z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodObject<{
+            key: z.ZodString;
+            says: z.ZodOptional<z.ZodString>;
+            links: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        }, "strip", z.ZodTypeAny, {
+            key: string;
+            says?: string | undefined;
+            links?: string[] | undefined;
+        }, {
+            key: string;
+            says?: string | undefined;
+            links?: string[] | undefined;
+        }>]>>;
         says: z.ZodOptional<z.ZodString>;
         links: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         steps: z.ZodArray<z.ZodUnion<[z.ZodObject<{
@@ -1189,11 +1281,11 @@ declare const ContractSchema: z.ZodObject<{
                 query: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>>>;
                 /**
                  * Back-compat + UX:
-                 * - body: { json: ... }  (preferred)
-                 * - body: { jsonFile: ... } (preferred)
-                 * - body: { text: ... } (preferred)
-                 * - body: { ... } (legacy direct JSON object allowed)
-                 * - body: "raw string" (legacy)
+                 * - body: { json: ... }      (preferred)
+                 * - body: { jsonFile: ... }  (preferred)
+                 * - body: { text: ... }      (preferred)
+                 * - body: { ... }            (legacy direct JSON object allowed)
+                 * - body: "raw string"       (legacy)
                  */
                 body: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodObject<{
                     json: z.ZodOptional<z.ZodAny>;
@@ -1677,9 +1769,13 @@ declare const ContractSchema: z.ZodObject<{
                 equals?: Record<string, any> | undefined;
             } | undefined;
         })[];
-        work_item?: string | undefined;
         says?: string | undefined;
         links?: string[] | undefined;
+        work_item?: string | {
+            key: string;
+            says?: string | undefined;
+            links?: string[] | undefined;
+        } | undefined;
     }, {
         id: string;
         steps: ({
@@ -1764,9 +1860,13 @@ declare const ContractSchema: z.ZodObject<{
                 equals?: Record<string, any> | undefined;
             } | undefined;
         })[];
-        work_item?: string | undefined;
         says?: string | undefined;
         links?: string[] | undefined;
+        work_item?: string | {
+            key: string;
+            says?: string | undefined;
+            links?: string[] | undefined;
+        } | undefined;
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
     name: string;
@@ -1854,9 +1954,13 @@ declare const ContractSchema: z.ZodObject<{
                 equals?: Record<string, any> | undefined;
             } | undefined;
         })[];
-        work_item?: string | undefined;
         says?: string | undefined;
         links?: string[] | undefined;
+        work_item?: string | {
+            key: string;
+            says?: string | undefined;
+            links?: string[] | undefined;
+        } | undefined;
     }[];
     description?: string | undefined;
 }, {
@@ -1945,9 +2049,13 @@ declare const ContractSchema: z.ZodObject<{
                 equals?: Record<string, any> | undefined;
             } | undefined;
         })[];
-        work_item?: string | undefined;
         says?: string | undefined;
         links?: string[] | undefined;
+        work_item?: string | {
+            key: string;
+            says?: string | undefined;
+            links?: string[] | undefined;
+        } | undefined;
     }[];
     description?: string | undefined;
 }>;
@@ -1960,7 +2068,36 @@ declare const SuiteSchema: z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         checks: z.ZodArray<z.ZodObject<{
             id: z.ZodString;
-            work_item: z.ZodOptional<z.ZodString>;
+            /**
+             * Supported forms:
+             *
+             * 1) Simple:
+             *    work_item: "KAN-123"
+             *    says: "..."
+             *    links: ["..."]
+             *
+             * 2) Structured:
+             *    work_item:
+             *      key: "KAN-123"
+             *      says: "..."
+             *      links: ["..."]
+             *
+             * Top-level says/links remain supported for backward compatibility
+             * and can be used as fallbacks when work_item is a string.
+             */
+            work_item: z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodObject<{
+                key: z.ZodString;
+                says: z.ZodOptional<z.ZodString>;
+                links: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            }, "strip", z.ZodTypeAny, {
+                key: string;
+                says?: string | undefined;
+                links?: string[] | undefined;
+            }, {
+                key: string;
+                says?: string | undefined;
+                links?: string[] | undefined;
+            }>]>>;
             says: z.ZodOptional<z.ZodString>;
             links: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
             steps: z.ZodArray<z.ZodUnion<[z.ZodObject<{
@@ -1971,11 +2108,11 @@ declare const SuiteSchema: z.ZodObject<{
                     query: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<[z.ZodString, z.ZodNumber, z.ZodBoolean]>>>;
                     /**
                      * Back-compat + UX:
-                     * - body: { json: ... }  (preferred)
-                     * - body: { jsonFile: ... } (preferred)
-                     * - body: { text: ... } (preferred)
-                     * - body: { ... } (legacy direct JSON object allowed)
-                     * - body: "raw string" (legacy)
+                     * - body: { json: ... }      (preferred)
+                     * - body: { jsonFile: ... }  (preferred)
+                     * - body: { text: ... }      (preferred)
+                     * - body: { ... }            (legacy direct JSON object allowed)
+                     * - body: "raw string"       (legacy)
                      */
                     body: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodObject<{
                         json: z.ZodOptional<z.ZodAny>;
@@ -2459,9 +2596,13 @@ declare const SuiteSchema: z.ZodObject<{
                     equals?: Record<string, any> | undefined;
                 } | undefined;
             })[];
-            work_item?: string | undefined;
             says?: string | undefined;
             links?: string[] | undefined;
+            work_item?: string | {
+                key: string;
+                says?: string | undefined;
+                links?: string[] | undefined;
+            } | undefined;
         }, {
             id: string;
             steps: ({
@@ -2546,9 +2687,13 @@ declare const SuiteSchema: z.ZodObject<{
                     equals?: Record<string, any> | undefined;
                 } | undefined;
             })[];
-            work_item?: string | undefined;
             says?: string | undefined;
             links?: string[] | undefined;
+            work_item?: string | {
+                key: string;
+                says?: string | undefined;
+                links?: string[] | undefined;
+            } | undefined;
         }>, "many">;
     }, "strip", z.ZodTypeAny, {
         name: string;
@@ -2636,9 +2781,13 @@ declare const SuiteSchema: z.ZodObject<{
                     equals?: Record<string, any> | undefined;
                 } | undefined;
             })[];
-            work_item?: string | undefined;
             says?: string | undefined;
             links?: string[] | undefined;
+            work_item?: string | {
+                key: string;
+                says?: string | undefined;
+                links?: string[] | undefined;
+            } | undefined;
         }[];
         description?: string | undefined;
     }, {
@@ -2727,9 +2876,13 @@ declare const SuiteSchema: z.ZodObject<{
                     equals?: Record<string, any> | undefined;
                 } | undefined;
             })[];
-            work_item?: string | undefined;
             says?: string | undefined;
             links?: string[] | undefined;
+            work_item?: string | {
+                key: string;
+                says?: string | undefined;
+                links?: string[] | undefined;
+            } | undefined;
         }[];
         description?: string | undefined;
     }>, "many">;
@@ -2822,9 +2975,13 @@ declare const SuiteSchema: z.ZodObject<{
                     equals?: Record<string, any> | undefined;
                 } | undefined;
             })[];
-            work_item?: string | undefined;
             says?: string | undefined;
             links?: string[] | undefined;
+            work_item?: string | {
+                key: string;
+                says?: string | undefined;
+                links?: string[] | undefined;
+            } | undefined;
         }[];
         description?: string | undefined;
     }[];
@@ -2918,9 +3075,13 @@ declare const SuiteSchema: z.ZodObject<{
                     equals?: Record<string, any> | undefined;
                 } | undefined;
             })[];
-            work_item?: string | undefined;
             says?: string | undefined;
             links?: string[] | undefined;
+            work_item?: string | {
+                key: string;
+                says?: string | undefined;
+                links?: string[] | undefined;
+            } | undefined;
         }[];
         description?: string | undefined;
     }[];
@@ -2929,9 +3090,10 @@ declare const SuiteSchema: z.ZodObject<{
 type SuiteFileV1 = z.infer<typeof SuiteSchema>;
 type Step = z.infer<typeof StepSchema>;
 type Check = z.infer<typeof CheckSchema>;
+type WorkItem = z.infer<typeof WorkItemSchema>;
 type HttpStep = z.infer<typeof HttpStepSchema>;
 type ExecStep = z.infer<typeof ExecStepSchema>;
 type SqlStep = z.infer<typeof SqlStepSchema>;
 type Expectation = z.infer<typeof ExpectationSchema>;
 
-export { type Check, CheckSchema, ContractSchema, type ExecStep, ExecStepSchema, type Expectation, ExpectationSchema, HttpBodySchema, type HttpStep, HttpStepSchema, type SqlStep, SqlStepSchema, type Step, StepSchema, type SuiteFileV1, SuiteSchema };
+export { type Check, CheckSchema, ContractSchema, type ExecStep, ExecStepSchema, type Expectation, ExpectationSchema, HttpBodySchema, type HttpStep, HttpStepSchema, type SqlStep, SqlStepSchema, type Step, StepSchema, type SuiteFileV1, SuiteSchema, type WorkItem, WorkItemObjectSchema, WorkItemSchema };

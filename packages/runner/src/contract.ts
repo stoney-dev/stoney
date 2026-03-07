@@ -13,10 +13,7 @@ export function loadSuite(filePath: string): SuiteFileV1 {
   const raw = fs.readFileSync(abs, "utf8");
   const data = filePath.endsWith(".json") ? JSON.parse(raw) : yaml.load(raw);
 
-  // 1. Interpolate variables (your existing runtime logic)
   const interpolated = interpolate(data);
-
-  // 2. Validate against Zod schema (your contract language validator)
   const result = SuiteSchema.safeParse(interpolated);
 
   if (!result.success) {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// --- Expectations (moved from contract.ts) ---
+// --- Expectations ---
 export const ExpectationSchema = z.object({
   status: z.number().optional(),
   json: z.any().optional(),
@@ -19,8 +19,7 @@ export const ExpectationSchema = z.object({
   equals: z.record(z.string(), z.any()).optional(),
 });
 
-// --- HTTP Body (NEW) ---
-// Preferred: body: { json: {...} } OR body: { jsonFile: "..." } OR body: { text: "..." }
+// --- HTTP Body ---
 export const HttpBodySchema = z
   .object({
     json: z.any().optional(),
@@ -29,12 +28,14 @@ export const HttpBodySchema = z
   })
   .superRefine((v, ctx) => {
     const chosen = [v.json !== undefined, !!v.jsonFile, v.text !== undefined].filter(Boolean).length;
+
     if (chosen === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "body must include exactly one of: json, jsonFile, text",
       });
     }
+
     if (chosen > 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -52,21 +53,24 @@ export const HttpStepSchema = z.object({
 
   /**
    * Back-compat + UX:
-   * - body: { json: ... }  (preferred)
-   * - body: { jsonFile: ... } (preferred)
-   * - body: { text: ... } (preferred)
-   * - body: { ... } (legacy direct JSON object allowed)
-   * - body: "raw string" (legacy)
+   * - body: { json: ... }      (preferred)
+   * - body: { jsonFile: ... }  (preferred)
+   * - body: { text: ... }      (preferred)
+   * - body: { ... }            (legacy direct JSON object allowed)
+   * - body: "raw string"       (legacy)
    */
-   body: z.union([
-    HttpBodySchema,
-    z.string(), // legacy raw string
-    z.record(z.string(), z.any()), // legacy JSON object
-    z.array(z.any()), // legacy JSON array
-    z.number(),
-    z.boolean(),
-    z.null(),
-  ]).optional(),
+  body: z
+    .union([
+      HttpBodySchema,
+      z.string(),
+      z.record(z.string(), z.any()),
+      z.array(z.any()),
+      z.number(),
+      z.boolean(),
+      z.null(),
+    ])
+    .optional(),
+
   timeout_ms: z.number().optional(),
   retries: z.number().optional(),
 });
@@ -94,11 +98,39 @@ export const StepSchema = z.union([
   z.object({ sql: SqlStepSchema, expect: ExpectationSchema.optional() }),
 ]);
 
-export const CheckSchema = z.object({
-  id: z.string(),
-  work_item: z.string().optional(),
+// --- Work Item ---
+export const WorkItemObjectSchema = z.object({
+  key: z.string(),
   says: z.string().optional(),
   links: z.array(z.string()).optional(),
+});
+
+export const WorkItemSchema = z.union([z.string(), WorkItemObjectSchema]);
+
+export const CheckSchema = z.object({
+  id: z.string(),
+
+  /**
+   * Supported forms:
+   *
+   * 1) Simple:
+   *    work_item: "KAN-123"
+   *    says: "..."
+   *    links: ["..."]
+   *
+   * 2) Structured:
+   *    work_item:
+   *      key: "KAN-123"
+   *      says: "..."
+   *      links: ["..."]
+   *
+   * Top-level says/links remain supported for backward compatibility
+   * and can be used as fallbacks when work_item is a string.
+   */
+  work_item: WorkItemSchema.optional(),
+  says: z.string().optional(),
+  links: z.array(z.string()).optional(),
+
   steps: z.array(StepSchema).min(1),
 });
 
@@ -115,10 +147,11 @@ export const SuiteSchema = z.object({
   contracts: z.array(ContractSchema).min(1),
 });
 
-// --- Inferred Types for your whole app ---
+// --- Inferred Types ---
 export type SuiteFileV1 = z.infer<typeof SuiteSchema>;
 export type Step = z.infer<typeof StepSchema>;
 export type Check = z.infer<typeof CheckSchema>;
+export type WorkItem = z.infer<typeof WorkItemSchema>;
 export type HttpStep = z.infer<typeof HttpStepSchema>;
 export type ExecStep = z.infer<typeof ExecStepSchema>;
 export type SqlStep = z.infer<typeof SqlStepSchema>;
