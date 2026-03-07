@@ -258,7 +258,9 @@ program
     }
 
     const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
-    if (!suitePaths.length) fatal(`No contract files matched: ${opts.suite}`);
+    if (!suitePaths.length) {
+      fatal(`No contract files matched: ${opts.suite}`);
+    }
 
     const suites: SuiteFileV1[] = [];
     for (const p of suitePaths) {
@@ -348,9 +350,9 @@ program
       results,
     };
 
-    const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
-    const out = path.resolve(workspace, opts.report);
+    const out = path.resolve(process.cwd(), opts.report);
 
+    fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
 
     console.log("--- STONEY_REPORT_START ---");
@@ -358,6 +360,7 @@ program
     console.log("--- STONEY_REPORT_END ---");
 
     await sendTelemetry(report);
+
     process.exit(failed === 0 ? 0 : 1);
   });
 
@@ -375,4 +378,7 @@ program.command("init").description("Initialize Stoney").action(() => {
   );
 });
 
-program.parse(process.argv);
+program.parseAsync(process.argv).catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  fatal(message);
+});
