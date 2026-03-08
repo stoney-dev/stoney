@@ -116,7 +116,6 @@ runs:
                 .map((r) => `${r.ok ? "✅" : "❌"} **${r.id}** (${r.contract}): ${r.notes.join(", ") || "No notes"}`)
                 .join("<br>")
             )
-            .addRaw('<br><br><i>View detailed trends at <a href="https://stoneydev.com">Stoney Cloud</a></i>')
             .write();
 
     - name: Upload Artifact

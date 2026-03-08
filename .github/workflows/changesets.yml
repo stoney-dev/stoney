@@ -32,7 +32,7 @@ jobs:
       - name: Build runner
         run: pnpm -C packages/runner build
 
-      - name: Fail if dist is stale
+      - name: Ensure dist is committed
         run: |
           set -euo pipefail
           if ! git diff --quiet -- packages/runner/dist; then
@@ -43,12 +43,12 @@ jobs:
             echo "  git add packages/runner/dist"
             echo "  git commit -m \"chore(runner): update dist\""
             echo ""
+            echo "Diff:"
             git --no-pager diff -- packages/runner/dist
             exit 1
           fi
 
       - name: Create Version Packages PR OR publish after merge
-        id: changesets
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
