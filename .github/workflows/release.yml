@@ -59,7 +59,7 @@ jobs:
 
       - name: Move v1 tag to this release commit
         env:
-          V1_TAG_PUSH_TOKEN: ${{ secrets.CHANGESETS_TOKEN }}
+          V1_TAG_PUSH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN}}
         run: |
           set -euo pipefail
 
