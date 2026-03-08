@@ -12,6 +12,7 @@ jobs:
   sync_dist_if_version_pr:
     if: startsWith(github.head_ref, 'changeset-release/')
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,6 +34,7 @@ jobs:
       - name: Commit dist if changed
         run: |
           set -euo pipefail
+
           if git diff --quiet -- packages/runner/dist; then
             echo "✅ dist unchanged"
             exit 0

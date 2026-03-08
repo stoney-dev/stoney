@@ -32,9 +32,6 @@ jobs:
           test -f packages/runner/dist/cli.cjs
           node packages/runner/dist/cli.cjs hello
 
-      # Only enforce dist drift on:
-      # - pushes to main, OR
-      # - the Changesets version PR branch (changeset-release/*)
       - name: Ensure dist is committed (no drift)
         if: ${{ github.event_name == 'push' || startsWith(github.head_ref, 'changeset-release/') }}
         run: |
@@ -49,3 +46,76 @@ jobs:
             git --no-pager diff -- packages/runner/dist
             exit 1
           fi
+
+  action_selftest:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: demo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d demo"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build runner
+        run: pnpm -C packages/runner build
+
+      - name: Wait for Postgres
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          echo "Waiting for postgres on localhost:5432..."
+          for i in {1..45}; do
+            if pg_isready -h localhost -p 5432 -U postgres -d demo; then
+              echo "✅ Postgres is ready"
+              exit 0
+            fi
+            echo "⏳ postgres not ready yet..."
+            sleep 1
+          done
+
+          echo "❌ Postgres did not become ready in time"
+          docker ps -a || true
+          exit 1
+
+      - name: Run local action
+        uses: ./
+        with:
+          base_url: "https://stoneydev.com"
+          suite: "contracts/*.yml"
+          retries: "2"
+          timeout_ms: "15000"
+          fail_fast: "true"
+          db_url: postgresql://postgres:postgres@localhost:5432/demo
+          require_work_item: "true"
+          work_item_pattern: "^KAN-\\d+$"
+          report: stoney-report.json
+          artifact_name: stoney-report
+
+      - name: Assert report exists
+        run: |
+          set -euo pipefail
+          test -f stoney-report.json
+          echo "✅ stoney-report.json exists"
+          cat stoney-report.json
