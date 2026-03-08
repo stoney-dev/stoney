@@ -34,11 +34,40 @@ jobs:
             echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Checkout (tag)
+      - name: Checkout release tag
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ steps.vars.outputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build runner
+        run: pnpm -C packages/runner build
+
+      - name: Verify action bundle exists
+        run: |
+          set -euo pipefail
+          test -f packages/runner/dist/cli.cjs
+
+      - name: Move v1 tag to this release commit
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch --tags origin
+
+          git tag -fa v1 -m "Update v1 to ${{ steps.vars.outputs.tag }}" HEAD
+          git push origin refs/tags/v1 --force
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
