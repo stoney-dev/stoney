@@ -58,15 +58,17 @@ jobs:
           test -f packages/runner/dist/cli.cjs
 
       - name: Move v1 tag to this release commit
+        env:
+          V1_TAG_PUSH_TOKEN: ${{ secrets.CHANGESETS_TOKEN }}
         run: |
           set -euo pipefail
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git fetch --tags origin
-
           git tag -fa v1 -m "Update v1 to ${{ steps.vars.outputs.tag }}" HEAD
+
+          git remote set-url origin "https://x-access-token:${V1_TAG_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin refs/tags/v1 --force
 
       - name: Create GitHub Release
