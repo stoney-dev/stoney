@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.4.1
+
+### Patch Changes
+
+- 4f26858: update reporting to be async
+
 ## 0.4.0
 
 ### Minor Changes
