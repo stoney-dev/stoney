@@ -1,0 +1,29 @@
+name: Sync v1 Action Tag
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  sync_v1:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Move v1 tag to latest main commit
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main --tags
+
+          git tag -fa v1 -m "Update v1 to ${GITHUB_SHA}" "${GITHUB_SHA}"
+          git push origin refs/tags/v1 --force
