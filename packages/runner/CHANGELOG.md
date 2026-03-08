@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.4.2
+
+### Patch Changes
+
+- b41f035: update workflows
+
 ## 0.4.1
 
 ### Patch Changes
