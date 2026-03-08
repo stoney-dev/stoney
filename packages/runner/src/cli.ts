@@ -378,7 +378,11 @@ program.command("init").description("Initialize Stoney").action(() => {
   );
 });
 
-program.parseAsync(process.argv).catch((err: unknown) => {
+async function main(): Promise<void> {
+  await program.parseAsync(process.argv);
+}
+
+main().catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
   fatal(message);
 });
