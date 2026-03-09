@@ -9046,6 +9046,25 @@ function isMultiStatement(q) {
   const normalized = s.endsWith(";") ? s.slice(0, -1) : s;
   return normalized.includes(";");
 }
+function isLocalhost(url) {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.toLowerCase();
+    return h === "localhost" || h === "127.0.0.1" || h === "::1";
+  } catch {
+    return false;
+  }
+}
+function getSslConfig(url) {
+  if (isLocalhost(url)) return void 0;
+  try {
+    const u = new URL(url);
+    if (u.searchParams.has("sslmode")) return void 0;
+  } catch {
+    return void 0;
+  }
+  return { rejectUnauthorized: false };
+}
 async function connectWithRetry(client, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -9053,7 +9072,7 @@ async function connectWithRetry(client, retries = 3) {
       return;
     } catch (e) {
       if (i === retries - 1) throw e;
-      await new Promise((resolve) => setTimeout(resolve, 1e3));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
 }
@@ -9062,7 +9081,9 @@ async function runSqlStep(step, expect) {
   const notes = [];
   const url = process.env[step.url_env];
   if (!url) {
-    console.error(`[Stoney Debug] Env var '${step.url_env}' is missing. Available keys: ${Object.keys(process.env).join(", ")}`);
+    console.error(
+      `[Stoney Debug] Env var '${step.url_env}' is missing. Available keys: ${Object.keys(process.env).join(", ")}`
+    );
     return {
       ok: false,
       kind: "sql",
@@ -9074,15 +9095,26 @@ async function runSqlStep(step, expect) {
   const allowWrite = String(process.env.STONEY_ALLOW_WRITE_SQL || "").toLowerCase() === "true";
   const allowMulti = String(process.env.STONEY_ALLOW_MULTI_SQL || "").toLowerCase() === "true";
   if (!allowMulti && isMultiStatement(step.query)) {
-    return { ok: false, kind: "sql", title, notes: [`Blocked multi-statement SQL. Use STONEY_ALLOW_MULTI_SQL=true.`] };
+    return {
+      ok: false,
+      kind: "sql",
+      title,
+      notes: [`Blocked multi-statement SQL. Use STONEY_ALLOW_MULTI_SQL=true.`]
+    };
   }
   if (!allowWrite && isProbablyWriteSql(step.query)) {
-    return { ok: false, kind: "sql", title, notes: [`Blocked write SQL. Use SELECT-only or STONEY_ALLOW_WRITE_SQL=true.`] };
+    return {
+      ok: false,
+      kind: "sql",
+      title,
+      notes: [`Blocked write SQL. Use SELECT-only or STONEY_ALLOW_WRITE_SQL=true.`]
+    };
   }
+  const sslConfig = getSslConfig(url);
   const client = new Client({
     connectionString: url,
-    ssl: { rejectUnauthorized: false }
-    // Essential for many CI/hosted DBs
+    ...sslConfig !== void 0 ? { ssl: sslConfig } : {},
+    connectionTimeoutMillis: 5e3
   });
   try {
     await connectWithRetry(client);
@@ -9107,13 +9139,24 @@ async function runSqlStep(step, expect) {
         notes.push("Expected SQL first-row subset did not match.");
       }
     }
-    return { ok, kind: "sql", title, notes, rows: typeof res.rowCount === "number" ? res.rowCount : void 0 };
+    return {
+      ok,
+      kind: "sql",
+      title,
+      notes,
+      rows: typeof res.rowCount === "number" ? res.rowCount : void 0
+    };
   } catch (e) {
     try {
       await client.query("ROLLBACK;");
     } catch {
     }
-    return { ok: false, kind: "sql", title, notes: [`SQL error: ${e?.message || String(e)}`] };
+    return {
+      ok: false,
+      kind: "sql",
+      title,
+      notes: [`SQL error: ${e?.message || String(e)}`]
+    };
   } finally {
     await client.end().catch(() => {
     });

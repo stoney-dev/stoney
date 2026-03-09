@@ -19,9 +19,38 @@ function isMultiStatement(q: string): boolean {
   return normalized.includes(";");
 }
 
+function isLocalhost(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.toLowerCase();
+    return h === "localhost" || h === "127.0.0.1" || h === "::1";
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Connects with a simple retry policy to handle transient CI networking issues.
+ * Returns an ssl override config only when needed:
+ * - Never for localhost (no SSL on local Postgres → hangs/fails)
+ * - Never if the URL already specifies sslmode (let pg handle it natively)
+ * - Otherwise applies { rejectUnauthorized: false } as a safe fallback for
+ *   hosted/prod databases that have SSL but use self-signed certs.
+ *
+ * The right long-term answer for prod is to include ?sslmode=require in the
+ * db_url secret, which makes this function return undefined and lets pg handle
+ * SSL entirely from the connection string.
  */
+function getSslConfig(url: string): pg.ConnectionConfig["ssl"] {
+  if (isLocalhost(url)) return undefined;
+  try {
+    const u = new URL(url);
+    if (u.searchParams.has("sslmode")) return undefined;
+  } catch {
+    return undefined;
+  }
+  return { rejectUnauthorized: false };
+}
+
 async function connectWithRetry(client: pg.Client, retries = 3): Promise<void> {
   for (let i = 0; i < retries; i++) {
     try {
@@ -29,7 +58,7 @@ async function connectWithRetry(client: pg.Client, retries = 3): Promise<void> {
       return;
     } catch (e) {
       if (i === retries - 1) throw e;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
 }
@@ -40,8 +69,9 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
 
   const url = process.env[step.url_env];
   if (!url) {
-    // Debugging hint: log the available env keys if lookup fails
-    console.error(`[Stoney Debug] Env var '${step.url_env}' is missing. Available keys: ${Object.keys(process.env).join(', ')}`);
+    console.error(
+      `[Stoney Debug] Env var '${step.url_env}' is missing. Available keys: ${Object.keys(process.env).join(", ")}`
+    );
     return {
       ok: false,
       kind: "sql",
@@ -50,38 +80,53 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
     };
   }
 
-  const timeoutMs = typeof step.timeout_ms === "number" ? step.timeout_ms : Number(process.env.STONEY_TIMEOUT_MS || 15000);
-  const allowWrite = String(process.env.STONEY_ALLOW_WRITE_SQL || "").toLowerCase() === "true";
-  const allowMulti = String(process.env.STONEY_ALLOW_MULTI_SQL || "").toLowerCase() === "true";
+  const timeoutMs =
+    typeof step.timeout_ms === "number"
+      ? step.timeout_ms
+      : Number(process.env.STONEY_TIMEOUT_MS || 15000);
+
+  const allowWrite =
+    String(process.env.STONEY_ALLOW_WRITE_SQL || "").toLowerCase() === "true";
+  const allowMulti =
+    String(process.env.STONEY_ALLOW_MULTI_SQL || "").toLowerCase() === "true";
 
   if (!allowMulti && isMultiStatement(step.query)) {
-    return { ok: false, kind: "sql", title, notes: [`Blocked multi-statement SQL. Use STONEY_ALLOW_MULTI_SQL=true.`] };
+    return {
+      ok: false,
+      kind: "sql",
+      title,
+      notes: [`Blocked multi-statement SQL. Use STONEY_ALLOW_MULTI_SQL=true.`],
+    };
   }
 
   if (!allowWrite && isProbablyWriteSql(step.query)) {
-    return { ok: false, kind: "sql", title, notes: [`Blocked write SQL. Use SELECT-only or STONEY_ALLOW_WRITE_SQL=true.`] };
+    return {
+      ok: false,
+      kind: "sql",
+      title,
+      notes: [`Blocked write SQL. Use SELECT-only or STONEY_ALLOW_WRITE_SQL=true.`],
+    };
   }
 
-  // Improved client config with SSL support for CI environments
-  const client = new Client({ 
+  const sslConfig = getSslConfig(url);
+
+  const client = new Client({
     connectionString: url,
-    ssl: { rejectUnauthorized: false } // Essential for many CI/hosted DBs
+    ...(sslConfig !== undefined ? { ssl: sslConfig } : {}),
+    connectionTimeoutMillis: 5000,
   });
 
   try {
     await connectWithRetry(client);
 
-    // Apply timeout
     const ms = Math.max(1, Math.floor(Number.isFinite(timeoutMs) ? timeoutMs : 15000));
     await client.query(`SET statement_timeout = ${ms};`);
 
-    // Transaction logic
     await client.query(allowWrite ? "BEGIN;" : "BEGIN READ ONLY;");
 
     const res = await client.query(step.query);
     await client.query("COMMIT;");
 
-    // Validation
     let ok = true;
     const exp = expect || {};
 
@@ -101,12 +146,24 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
       }
     }
 
-    return { ok, kind: "sql", title, notes, rows: typeof res.rowCount === "number" ? res.rowCount : undefined };
+    return {
+      ok,
+      kind: "sql",
+      title,
+      notes,
+      rows: typeof res.rowCount === "number" ? res.rowCount : undefined,
+    };
   } catch (e: any) {
-    try { await client.query("ROLLBACK;"); } catch {}
-    return { ok: false, kind: "sql", title, notes: [`SQL error: ${e?.message || String(e)}`] };
+    try {
+      await client.query("ROLLBACK;");
+    } catch {}
+    return {
+      ok: false,
+      kind: "sql",
+      title,
+      notes: [`SQL error: ${e?.message || String(e)}`],
+    };
   } finally {
-    // Ensure we always clean up
     await client.end().catch(() => {});
   }
 }
