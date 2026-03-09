@@ -1,0 +1,32 @@
+{
+  "report_version": 1,
+  "base_url": "",
+  "total": 1,
+  "failed": 0,
+  "passed": 1,
+  "ok": true,
+  "results": [
+    {
+      "feature": "smoke",
+      "contract": "exec_smoke",
+      "id": "smoke_exec",
+      "ok": true,
+      "work_item": {
+        "key": "KAN-1",
+        "says": "Runner can execute a basic shell command"
+      },
+      "notes": [],
+      "steps": [
+        {
+          "ok": true,
+          "kind": "exec",
+          "title": "exec echo hello",
+          "notes": [],
+          "exit_code": 0,
+          "duration_ms": 6,
+          "stdout": "hello\n"
+        }
+      ]
+    }
+  ]
+}

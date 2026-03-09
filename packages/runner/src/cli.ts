@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import fg from "fast-glob";
-import { Command } from "commander";
+import { Command, CommanderError } from "commander";
 import { fileURLToPath } from "node:url";
 
 import { runSqlStep } from "./sql.js";
@@ -218,7 +218,18 @@ function normalizeWorkItem(
   return undefined;
 }
 
-program.name("stoney").description("Stoney — run contracts in CI.").version(readVersion());
+program
+  .name("stoney")
+  .description("Stoney — run contracts in CI.")
+  .version(readVersion())
+  // Surface Commander parse errors as visible stderr output + non-zero exit
+  // instead of silently calling process.exit(1) with no message.
+  .exitOverride((err: CommanderError) => {
+    if (err.code !== "commander.helpDisplayed" && err.code !== "commander.version") {
+      console.error(`❌ Stoney CLI error: ${err.message}`);
+    }
+    process.exit(err.exitCode ?? 1);
+  });
 
 program.command("hello").action(() => console.log("🪨 Stoney is alive."));
 
@@ -241,11 +252,18 @@ program
   .option("--fail-fast", "Stop on first failure", false)
   .option("--require-work-item", "Require work_item on every check", false)
   .option("--work-item-pattern <regex>", "Regex that work_item.key must match")
+  // Reject unknown args so a stray empty-string arg from the action is caught
+  // loudly rather than silently swallowed.
+  .allowUnknownOption(false)
   .action(async (opts: any) => {
     const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
     const argv = process.argv.slice(2);
 
-    const userSpecifiedRequire = didUserPassFlag(argv, "--require-work-item");
+    // Filter out any empty-string args that bash may inject when optional
+    // flag expressions evaluate to '' in the calling shell script.
+    const cleanArgv = argv.filter((a) => a.trim() !== "");
+
+    const userSpecifiedRequire = didUserPassFlag(cleanArgv, "--require-work-item");
     const requireWorkItem = userSpecifiedRequire
       ? Boolean(opts.requireWorkItem)
       : envFlag("STONEY_REQUIRE_WORK_ITEM");
@@ -257,10 +275,14 @@ program
       fatal(`Invalid --work-item-pattern regex: ${patternRaw}`);
     }
 
+    console.log(`🔍 Resolving suite glob: ${opts.suite} (cwd: ${process.cwd()})`);
+
     const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
     if (!suitePaths.length) {
       fatal(`No contract files matched: ${opts.suite}`);
     }
+
+    console.log(`📋 Found ${suitePaths.length} contract file(s): ${suitePaths.join(", ")}`);
 
     const suites: SuiteFileV1[] = [];
     for (const p of suitePaths) {

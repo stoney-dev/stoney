@@ -95,11 +95,25 @@ runs:
 
         rm -f "${REPORT_PATH}" "${LOG_PATH}"
 
-        node "${CLI_PATH}" run \
-          --suite "${{ inputs.suite }}" \
-          --report "${REPORT_PATH}" \
-          ${{ inputs.fail_fast == 'true' && '--fail-fast' || '' }} \
-          ${{ inputs.require_work_item == 'true' && '--require-work-item' || '' }} \
+        # Build args array to avoid passing empty string args to Commander
+        # when optional flags are disabled. An empty string literal arg ("") 
+        # causes Commander to error on an unrecognised argument and exit.
+        STONEY_ARGS=(
+          --suite "${{ github.workspace }}/${{ inputs.suite }}"
+          --report "${REPORT_PATH}"
+        )
+
+        if [ "${{ inputs.fail_fast }}" = "true" ]; then
+          STONEY_ARGS+=(--fail-fast)
+        fi
+
+        if [ "${{ inputs.require_work_item }}" = "true" ]; then
+          STONEY_ARGS+=(--require-work-item)
+        fi
+
+        cd "${{ github.workspace }}"
+
+        node "${CLI_PATH}" run "${STONEY_ARGS[@]}" \
           2>&1 | tee "${LOG_PATH}"
 
         exit_code=${PIPESTATUS[0]}

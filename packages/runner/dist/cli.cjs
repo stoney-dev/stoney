@@ -5550,7 +5550,7 @@ var require_out4 = __commonJS({
 var require_error2 = __commonJS({
   "../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/lib/error.js"(exports2) {
     "use strict";
-    var CommanderError2 = class extends Error {
+    var CommanderError3 = class extends Error {
       /**
        * Constructs the CommanderError class
        * @param {number} exitCode suggested exit code which could be used with process.exit
@@ -5566,7 +5566,7 @@ var require_error2 = __commonJS({
         this.nestedError = void 0;
       }
     };
-    var InvalidArgumentError2 = class extends CommanderError2 {
+    var InvalidArgumentError2 = class extends CommanderError3 {
       /**
        * Constructs the InvalidArgumentError class
        * @param {string} [message] explanation of why argument is invalid
@@ -5577,7 +5577,7 @@ var require_error2 = __commonJS({
         this.name = this.constructor.name;
       }
     };
-    exports2.CommanderError = CommanderError2;
+    exports2.CommanderError = CommanderError3;
     exports2.InvalidArgumentError = InvalidArgumentError2;
   }
 });
@@ -6719,7 +6719,7 @@ var require_command = __commonJS({
     var fs4 = require("fs");
     var process2 = require("process");
     var { Argument: Argument2, humanReadableArgName } = require_argument();
-    var { CommanderError: CommanderError2 } = require_error2();
+    var { CommanderError: CommanderError3 } = require_error2();
     var { Help: Help2, stripColor } = require_help();
     var { Option: Option2, DualOptions } = require_option();
     var { suggestSimilar } = require_suggestSimilar();
@@ -7162,7 +7162,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
        */
       _exit(exitCode, code, message) {
         if (this._exitCallback) {
-          this._exitCallback(new CommanderError2(exitCode, code, message));
+          this._exitCallback(new CommanderError3(exitCode, code, message));
         }
         process2.exit(exitCode);
       }
@@ -7806,7 +7806,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
             process2.exit(code);
           } else {
             exitCallback(
-              new CommanderError2(
+              new CommanderError3(
                 code,
                 "commander.executeSubCommandAsync",
                 "(close)"
@@ -7827,7 +7827,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
           if (!exitCallback) {
             process2.exit(1);
           } else {
-            const wrappedError = new CommanderError2(
+            const wrappedError = new CommanderError3(
               1,
               "commander.executeSubCommandAsync",
               "(error)"
@@ -8962,7 +8962,7 @@ var require_commander = __commonJS({
     "use strict";
     var { Argument: Argument2 } = require_argument();
     var { Command: Command2 } = require_command();
-    var { CommanderError: CommanderError2, InvalidArgumentError: InvalidArgumentError2 } = require_error2();
+    var { CommanderError: CommanderError3, InvalidArgumentError: InvalidArgumentError2 } = require_error2();
     var { Help: Help2 } = require_help();
     var { Option: Option2 } = require_option();
     exports2.program = new Command2();
@@ -8973,7 +8973,7 @@ var require_commander = __commonJS({
     exports2.Option = Option2;
     exports2.Argument = Argument2;
     exports2.Help = Help2;
-    exports2.CommanderError = CommanderError2;
+    exports2.CommanderError = CommanderError3;
     exports2.InvalidArgumentError = InvalidArgumentError2;
     exports2.InvalidOptionArgumentError = InvalidArgumentError2;
   }
@@ -21565,26 +21565,34 @@ function normalizeWorkItem(workItem, fallbackSays, fallbackLinks) {
   }
   return void 0;
 }
-program2.name("stoney").description("Stoney \u2014 run contracts in CI.").version(readVersion());
+program2.name("stoney").description("Stoney \u2014 run contracts in CI.").version(readVersion()).exitOverride((err) => {
+  if (err.code !== "commander.helpDisplayed" && err.code !== "commander.version") {
+    console.error(`\u274C Stoney CLI error: ${err.message}`);
+  }
+  process.exit(err.exitCode ?? 1);
+});
 program2.command("hello").action(() => console.log("\u{1FAA8} Stoney is alive."));
 program2.command("parse").argument("<file>", "Contract file (.yml/.yaml or .json)").option("--pretty", "Pretty-print JSON").action((file, opts) => {
   const suite = loadSuite(file);
   console.log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
 });
-program2.command("run").requiredOption("--suite <glob>", "Contract file path or glob (e.g. contracts/*.yml)").option("--base-url <url>", "Base URL").option("--report <path>", "JSON report output path", "stoney-report.json").option("--only-contract <name>", "Run only one contract by name").option("--only-check <id>", "Run only one check id").option("--fail-fast", "Stop on first failure", false).option("--require-work-item", "Require work_item on every check", false).option("--work-item-pattern <regex>", "Regex that work_item.key must match").action(async (opts) => {
+program2.command("run").requiredOption("--suite <glob>", "Contract file path or glob (e.g. contracts/*.yml)").option("--base-url <url>", "Base URL").option("--report <path>", "JSON report output path", "stoney-report.json").option("--only-contract <name>", "Run only one contract by name").option("--only-check <id>", "Run only one check id").option("--fail-fast", "Stop on first failure", false).option("--require-work-item", "Require work_item on every check", false).option("--work-item-pattern <regex>", "Regex that work_item.key must match").allowUnknownOption(false).action(async (opts) => {
   const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
   const argv = process.argv.slice(2);
-  const userSpecifiedRequire = didUserPassFlag(argv, "--require-work-item");
+  const cleanArgv = argv.filter((a) => a.trim() !== "");
+  const userSpecifiedRequire = didUserPassFlag(cleanArgv, "--require-work-item");
   const requireWorkItem = userSpecifiedRequire ? Boolean(opts.requireWorkItem) : envFlag("STONEY_REQUIRE_WORK_ITEM");
   const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
   const pattern = patternRaw ? safeRegex2(patternRaw) : null;
   if (patternRaw && !pattern) {
     fatal(`Invalid --work-item-pattern regex: ${patternRaw}`);
   }
+  console.log(`\u{1F50D} Resolving suite glob: ${opts.suite} (cwd: ${process.cwd()})`);
   const suitePaths = await (0, import_fast_glob.default)(opts.suite, { onlyFiles: true, unique: true });
   if (!suitePaths.length) {
     fatal(`No contract files matched: ${opts.suite}`);
   }
+  console.log(`\u{1F4CB} Found ${suitePaths.length} contract file(s): ${suitePaths.join(", ")}`);
   const suites = [];
   for (const p of suitePaths) {
     try {

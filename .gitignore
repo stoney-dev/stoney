@@ -26,5 +26,3 @@ yarn-error.log*
 *.pem
 *.tsbuildinfo
 
-local-report.json
-stoney-report.json
