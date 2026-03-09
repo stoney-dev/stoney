@@ -65,15 +65,24 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-
         CLI_PATH="${{ github.action_path }}/packages/runner/dist/cli.cjs"
-
         if [ ! -f "${CLI_PATH}" ]; then
           echo "❌ Bundled CLI not found at ${CLI_PATH}"
           exit 1
         fi
 
-        node "${CLI_PATH}" hello
+    - name: Install runtime dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "${{ github.action_path }}/packages/runner"
+        npm install --omit=dev --ignore-scripts 2>&1 | tail -5
+
+    - name: Smoke test CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        node "${{ github.action_path }}/packages/runner/dist/cli.cjs" hello
 
     - name: Run Stoney
       id: run_stoney
@@ -95,9 +104,6 @@ runs:
 
         rm -f "${REPORT_PATH}" "${LOG_PATH}"
 
-        # Build args array to avoid passing empty string args to Commander
-        # when optional flags are disabled. An empty string literal arg ("") 
-        # causes Commander to error on an unrecognised argument and exit.
         STONEY_ARGS=(
           --suite "${{ github.workspace }}/${{ inputs.suite }}"
           --report "${REPORT_PATH}"
@@ -195,4 +201,6 @@ runs:
       if: always()
       shell: bash
       run: |
-        exit "${{ steps.run_stoney.outputs.exit_code }}"
+        exit "${EXIT_CODE:-1}"
+      env:
+        EXIT_CODE: ${{ steps.run_stoney.outputs.exit_code }}
