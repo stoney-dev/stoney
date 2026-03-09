@@ -61,6 +61,20 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Verify bundled runner exists
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        CLI_PATH="${{ github.action_path }}/packages/runner/dist/cli.cjs"
+
+        if [ ! -f "${CLI_PATH}" ]; then
+          echo "❌ Bundled CLI not found at ${CLI_PATH}"
+          exit 1
+        fi
+
+        node "${CLI_PATH}" hello
+
     - name: Run Stoney
       id: run_stoney
       shell: bash
@@ -77,8 +91,11 @@ runs:
 
         REPORT_PATH="${{ github.workspace }}/${{ inputs.report }}"
         LOG_PATH="${{ github.workspace }}/stoney-action.log"
+        CLI_PATH="${{ github.action_path }}/packages/runner/dist/cli.cjs"
 
-        node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
+        rm -f "${REPORT_PATH}" "${LOG_PATH}"
+
+        node "${CLI_PATH}" run \
           --suite "${{ inputs.suite }}" \
           --report "${REPORT_PATH}" \
           ${{ inputs.fail_fast == 'true' && '--fail-fast' || '' }} \
@@ -86,6 +103,11 @@ runs:
           2>&1 | tee "${LOG_PATH}"
 
         exit_code=${PIPESTATUS[0]}
+
+        if [ "${exit_code}" = "0" ] && [ ! -f "${REPORT_PATH}" ]; then
+          echo "❌ CLI exited 0 but no report was created at ${REPORT_PATH}" | tee -a "${LOG_PATH}"
+          exit_code=1
+        fi
 
         echo "exit_code=${exit_code}" >> "$GITHUB_OUTPUT"
         echo "report_path=${REPORT_PATH}" >> "$GITHUB_OUTPUT"
@@ -106,9 +128,9 @@ runs:
 
           const reportPath = process.env.REPORT_PATH;
           const logPath = process.env.LOG_PATH;
-          const exitCode = Number(process.env.STONEY_EXIT_CODE || "0");
+          const exitCode = Number(process.env.STONEY_EXIT_CODE || "1");
 
-          if (fs.existsSync(reportPath) && fs.lstatSync(reportPath).isFile()) {
+          if (reportPath && fs.existsSync(reportPath) && fs.lstatSync(reportPath).isFile()) {
             const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
 
             await core.summary
@@ -131,7 +153,7 @@ runs:
           }
 
           let logText = "No CLI log was captured.";
-          if (fs.existsSync(logPath) && fs.lstatSync(logPath).isFile()) {
+          if (logPath && fs.existsSync(logPath) && fs.lstatSync(logPath).isFile()) {
             logText = fs.readFileSync(logPath, "utf8").trim() || logText;
           }
 
@@ -140,7 +162,7 @@ runs:
             : logText;
 
           await core.summary
-            .addHeading(`🪨 Stoney Report — ❌ FAILED BEFORE REPORT`)
+            .addHeading("🪨 Stoney Report — ❌ FAILED BEFORE REPORT")
             .addRaw(`Exit code: **${exitCode}**<br><br>`)
             .addCodeBlock(snippet, "text")
             .write();
