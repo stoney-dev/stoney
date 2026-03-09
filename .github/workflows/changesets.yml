@@ -32,7 +32,7 @@ jobs:
       - name: Build runner
         run: pnpm -C packages/runner build
 
-      - name: Ensure dist is committed
+      - name: Ensure dist is committed before version/publish
         run: |
           set -euo pipefail
           if ! git diff --quiet -- packages/runner/dist; then

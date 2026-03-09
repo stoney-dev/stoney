@@ -1,0 +1,59 @@
+name: Promote Release Branch
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: promote-release
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch all branches
+        run: |
+          git fetch origin main release || true
+
+      - name: Rebuild runner
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm -C packages/runner build
+
+      - name: Verify dist is committed
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- packages/runner/dist; then
+            echo "❌ dist is not committed on main."
+            git --no-pager diff -- packages/runner/dist
+            exit 1
+          fi
+
+      - name: Promote main to release
+        run: |
+          set -euo pipefail
+
+          if git ls-remote --exit-code --heads origin release >/dev/null 2>&1; then
+            git checkout -B release origin/release
+          else
+            git checkout -B release
+          fi
+
+          git reset --hard origin/main
+          git push origin release --force
