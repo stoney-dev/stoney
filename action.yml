@@ -75,60 +75,88 @@ runs:
       run: |
         set +e
 
+        REPORT_PATH="${{ github.workspace }}/${{ inputs.report }}"
+        LOG_PATH="${{ github.workspace }}/stoney-action.log"
+
         node "${{ github.action_path }}/packages/runner/dist/cli.cjs" run \
           --suite "${{ inputs.suite }}" \
-          --report "${{ github.workspace }}/${{ inputs.report }}" \
+          --report "${REPORT_PATH}" \
           ${{ inputs.fail_fast == 'true' && '--fail-fast' || '' }} \
-          ${{ inputs.require_work_item == 'true' && '--require-work-item' || '' }}
+          ${{ inputs.require_work_item == 'true' && '--require-work-item' || '' }} \
+          2>&1 | tee "${LOG_PATH}"
 
-        exit_code=$?
-        echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+        exit_code=${PIPESTATUS[0]}
+
+        echo "exit_code=${exit_code}" >> "$GITHUB_OUTPUT"
+        echo "report_path=${REPORT_PATH}" >> "$GITHUB_OUTPUT"
+        echo "log_path=${LOG_PATH}" >> "$GITHUB_OUTPUT"
+
         exit 0
 
     - name: Generate Job Summary
       if: always()
       uses: actions/github-script@v7
       env:
-        REPORT_PATH: ${{ github.workspace }}/${{ inputs.report }}
+        REPORT_PATH: ${{ steps.run_stoney.outputs.report_path }}
+        LOG_PATH: ${{ steps.run_stoney.outputs.log_path }}
+        STONEY_EXIT_CODE: ${{ steps.run_stoney.outputs.exit_code }}
       with:
         script: |
           const fs = require("fs");
-          const reportPath = process.env.REPORT_PATH;
 
-          if (!fs.existsSync(reportPath) || !fs.lstatSync(reportPath).isFile()) {
-            await core.summary.addRaw("⚠️ No report file found at " + reportPath).write();
+          const reportPath = process.env.REPORT_PATH;
+          const logPath = process.env.LOG_PATH;
+          const exitCode = Number(process.env.STONEY_EXIT_CODE || "0");
+
+          if (fs.existsSync(reportPath) && fs.lstatSync(reportPath).isFile()) {
+            const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+
+            await core.summary
+              .addHeading(`🪨 Stoney Report — ${report.ok ? "✅ PASS" : "❌ FAIL"}`)
+              .addTable([
+                [{ data: "Metric", header: true }, { data: "Value", header: true }],
+                ["Passed", String(report.passed)],
+                ["Failed", String(report.failed)],
+                ["Total", String(report.total)],
+              ])
+              .addHeading("Results", 3)
+              .addRaw(
+                report.results
+                  .map((r) => `${r.ok ? "✅" : "❌"} **${r.id}** (${r.contract}): ${r.notes.join(", ") || "No notes"}`)
+                  .join("<br>")
+              )
+              .write();
+
             return;
           }
 
-          const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+          let logText = "No CLI log was captured.";
+          if (fs.existsSync(logPath) && fs.lstatSync(logPath).isFile()) {
+            logText = fs.readFileSync(logPath, "utf8").trim() || logText;
+          }
+
+          const snippet = logText.length > 12000
+            ? logText.slice(-12000)
+            : logText;
 
           await core.summary
-            .addHeading(`🪨 Stoney Report — ${report.ok ? "✅ PASS" : "❌ FAIL"}`)
-            .addTable([
-              [{ data: "Metric", header: true }, { data: "Value", header: true }],
-              ["Passed", String(report.passed)],
-              ["Failed", String(report.failed)],
-              ["Total", String(report.total)],
-            ])
-            .addHeading("Results", 3)
-            .addRaw(
-              report.results
-                .map((r) => `${r.ok ? "✅" : "❌"} **${r.id}** (${r.contract}): ${r.notes.join(", ") || "No notes"}`)
-                .join("<br>")
-            )
+            .addHeading(`🪨 Stoney Report — ❌ FAILED BEFORE REPORT`)
+            .addRaw(`Exit code: **${exitCode}**<br><br>`)
+            .addCodeBlock(snippet, "text")
             .write();
 
-    - name: Upload Artifact
+    - name: Upload artifacts
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.artifact_name }}
-        path: ${{ github.workspace }}/${{ inputs.report }}
+        path: |
+          ${{ steps.run_stoney.outputs.report_path }}
+          ${{ steps.run_stoney.outputs.log_path }}
         if-no-files-found: warn
 
-    - name: Fail action if Stoney failed
-      if: steps.run_stoney.outputs.exit_code != '0'
+    - name: Fail if Stoney failed
+      if: always()
       shell: bash
       run: |
-        echo "Stoney run failed with exit code ${{ steps.run_stoney.outputs.exit_code }}"
         exit "${{ steps.run_stoney.outputs.exit_code }}"
