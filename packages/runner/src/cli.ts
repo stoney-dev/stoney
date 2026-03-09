@@ -17,6 +17,19 @@ import type { TelemetryEnvelope } from "./telemetry.js";
 const program = new Command();
 const TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
 
+// Catch any unhandled promise rejection that Commander drops on the floor
+// and surface it as a visible error with a non-zero exit code.
+process.on("unhandledRejection", (reason: unknown) => {
+  const message = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  console.error(`❌ Unhandled rejection in Stoney CLI:\n${message}`);
+  process.exit(2);
+});
+
+process.on("uncaughtException", (err: Error) => {
+  console.error(`❌ Uncaught exception in Stoney CLI:\n${err.stack || err.message}`);
+  process.exit(2);
+});
+
 function readVersion(): string {
   try {
     const __filename = fileURLToPath(import.meta.url);
@@ -148,27 +161,41 @@ async function sendTelemetry(report: unknown): Promise<void> {
 }
 
 async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
-  if ("http" in st) {
-    if (!baseUrl) {
-      return {
-        ok: false,
-        kind: "http",
-        title: `http ${st.http.method} ${st.http.path}`,
-        notes: ["Missing base_url."],
-      };
+  try {
+    if ("http" in st) {
+      if (!baseUrl) {
+        return {
+          ok: false,
+          kind: "http",
+          title: `http ${st.http.method} ${st.http.path}`,
+          notes: ["Missing base_url."],
+        };
+      }
+      return await runHttpStep(baseUrl, st.http, st.expect);
     }
-    return runHttpStep(baseUrl, st.http, st.expect);
+
+    if ("exec" in st) return await runExecStep(st.exec, st.expect);
+    if ("sql" in st) return await runSqlStep(st.sql, st.expect);
+
+    return {
+      ok: false,
+      kind: "exec",
+      title: "unknown",
+      notes: ["Unknown step type."],
+    };
+  } catch (err: any) {
+    // Surface step-level errors as failed step results rather than letting
+    // them escape and silently kill the process with exit 0 + no report.
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? (err.stack ?? "") : "";
+    console.error(`❌ Step threw unexpectedly: ${message}\n${stack}`);
+    return {
+      ok: false,
+      kind: "exec",
+      title: "step error",
+      notes: [`Step threw: ${message}`],
+    };
   }
-
-  if ("exec" in st) return runExecStep(st.exec, st.expect);
-  if ("sql" in st) return runSqlStep(st.sql, st.expect);
-
-  return {
-    ok: false,
-    kind: "exec",
-    title: "unknown",
-    notes: ["Unknown step type."],
-  };
 }
 
 function pickString(value: unknown): string | undefined {
@@ -177,7 +204,6 @@ function pickString(value: unknown): string | undefined {
 
 function pickStringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
-
   const filtered = value.filter((x: unknown): x is string => typeof x === "string");
   return filtered.length ? filtered : undefined;
 }
@@ -190,7 +216,6 @@ function normalizeWorkItem(
   if (typeof workItem === "string") {
     const key = workItem.trim();
     if (!key) return undefined;
-
     return {
       key,
       says: pickString(fallbackSays),
@@ -199,15 +224,9 @@ function normalizeWorkItem(
   }
 
   if (workItem && typeof workItem === "object") {
-    const wi = workItem as {
-      key?: unknown;
-      says?: unknown;
-      links?: unknown;
-    };
-
+    const wi = workItem as { key?: unknown; says?: unknown; links?: unknown };
     const key = typeof wi.key === "string" ? wi.key.trim() : "";
     if (!key) return undefined;
-
     return {
       key,
       says: pickString(wi.says) ?? pickString(fallbackSays),
@@ -222,8 +241,6 @@ program
   .name("stoney")
   .description("Stoney — run contracts in CI.")
   .version(readVersion())
-  // Surface Commander parse errors as visible stderr output + non-zero exit
-  // instead of silently calling process.exit(1) with no message.
   .exitOverride((err: CommanderError) => {
     if (err.code !== "commander.helpDisplayed" && err.code !== "commander.version") {
       console.error(`❌ Stoney CLI error: ${err.message}`);
@@ -252,139 +269,147 @@ program
   .option("--fail-fast", "Stop on first failure", false)
   .option("--require-work-item", "Require work_item on every check", false)
   .option("--work-item-pattern <regex>", "Regex that work_item.key must match")
-  // Reject unknown args so a stray empty-string arg from the action is caught
-  // loudly rather than silently swallowed.
   .allowUnknownOption(false)
   .action(async (opts: any) => {
-    const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
-    const argv = process.argv.slice(2);
-
-    // Filter out any empty-string args that bash may inject when optional
-    // flag expressions evaluate to '' in the calling shell script.
-    const cleanArgv = argv.filter((a) => a.trim() !== "");
-
-    const userSpecifiedRequire = didUserPassFlag(cleanArgv, "--require-work-item");
-    const requireWorkItem = userSpecifiedRequire
-      ? Boolean(opts.requireWorkItem)
-      : envFlag("STONEY_REQUIRE_WORK_ITEM");
-
-    const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
-    const pattern = patternRaw ? safeRegex(patternRaw) : null;
-
-    if (patternRaw && !pattern) {
-      fatal(`Invalid --work-item-pattern regex: ${patternRaw}`);
+    // Wrap the entire action body so any throw — sync or async — is caught
+    // and printed before exit, instead of being silently dropped by Commander.
+    try {
+      await runCommand(opts);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.stack || err.message : String(err);
+      console.error(`❌ Stoney run failed with unhandled error:\n${message}`);
+      process.exit(2);
     }
+  });
 
-    console.log(`🔍 Resolving suite glob: ${opts.suite} (cwd: ${process.cwd()})`);
+async function runCommand(opts: any): Promise<void> {
+  const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
+  const argv = process.argv.slice(2).filter((a) => a.trim() !== "");
 
-    const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
-    if (!suitePaths.length) {
-      fatal(`No contract files matched: ${opts.suite}`);
+  const userSpecifiedRequire = didUserPassFlag(argv, "--require-work-item");
+  const requireWorkItem = userSpecifiedRequire
+    ? Boolean(opts.requireWorkItem)
+    : envFlag("STONEY_REQUIRE_WORK_ITEM");
+
+  const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
+  const pattern = patternRaw ? safeRegex(patternRaw) : null;
+
+  if (patternRaw && !pattern) {
+    fatal(`Invalid --work-item-pattern regex: ${patternRaw}`);
+  }
+
+  console.log(`🔍 Resolving suite glob: ${opts.suite} (cwd: ${process.cwd()})`);
+
+  const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
+  if (!suitePaths.length) {
+    fatal(`No contract files matched: ${opts.suite}`);
+  }
+
+  console.log(`📋 Found ${suitePaths.length} contract file(s): ${suitePaths.join(", ")}`);
+
+  const suites: SuiteFileV1[] = [];
+  for (const p of suitePaths) {
+    try {
+      suites.push(loadSuite(p));
+    } catch (e: any) {
+      fatal(`Contract parse error in "${p}": ${e?.message || String(e)}`);
     }
+  }
 
-    console.log(`📋 Found ${suitePaths.length} contract file(s): ${suitePaths.join(", ")}`);
+  let failed = 0;
+  let total = 0;
+  const results: Array<{ feature: string; contract: string } & ScenarioResult> = [];
+  let shouldStop = false;
 
-    const suites: SuiteFileV1[] = [];
-    for (const p of suitePaths) {
-      try {
-        suites.push(loadSuite(p));
-      } catch (e: any) {
-        fatal(`Contract parse error in "${p}": ${e?.message || String(e)}`);
-      }
-    }
+  for (const suite of suites) {
+    if (shouldStop) break;
 
-    let failed = 0;
-    let total = 0;
-    const results: Array<{ feature: string; contract: string } & ScenarioResult> = [];
-    let shouldStop = false;
-
-    for (const suite of suites) {
+    for (const contract of suite.contracts) {
       if (shouldStop) break;
+      if (opts.onlyContract && contract.name !== opts.onlyContract) continue;
 
-      for (const contract of suite.contracts) {
+      for (const check of contract.checks as Check[]) {
         if (shouldStop) break;
-        if (opts.onlyContract && contract.name !== opts.onlyContract) continue;
+        if (opts.onlyCheck && check.id !== opts.onlyCheck) continue;
 
-        for (const check of contract.checks as Check[]) {
-          if (shouldStop) break;
-          if (opts.onlyCheck && check.id !== opts.onlyCheck) continue;
+        total++;
 
-          total++;
+        let checkOk = true;
+        const notes: string[] = [];
+        const stepResults: StepResult[] = [];
+        const normalizedWorkItem = normalizeWorkItem(check.work_item, check.says, check.links);
+        const workItemKey = normalizedWorkItem?.key || "";
 
-          let checkOk = true;
-          const notes: string[] = [];
-          const stepResults: StepResult[] = [];
-          const normalizedWorkItem = normalizeWorkItem(check.work_item, check.says, check.links);
-          const workItemKey = normalizedWorkItem?.key || "";
-
-          if (requireWorkItem) {
-            if (!workItemKey) {
-              checkOk = false;
-              notes.push("Missing work_item. Expected a work_item.key value.");
-            } else if (pattern && !pattern.test(workItemKey)) {
-              checkOk = false;
-              notes.push(
-                `work_item.key "${workItemKey}" does not match required pattern "${patternRaw}".`
-              );
-            }
+        if (requireWorkItem) {
+          if (!workItemKey) {
+            checkOk = false;
+            notes.push("Missing work_item. Expected a work_item.key value.");
+          } else if (pattern && !pattern.test(workItemKey)) {
+            checkOk = false;
+            notes.push(
+              `work_item.key "${workItemKey}" does not match required pattern "${patternRaw}".`
+            );
           }
+        }
 
-          if (checkOk) {
-            if (!Array.isArray(check.steps) || check.steps.length === 0) {
-              checkOk = false;
-              notes.push("Check has no steps.");
-            } else {
-              for (const st of check.steps) {
-                const r = await runOneStep(baseUrl, st);
-                stepResults.push(r);
+        if (checkOk) {
+          if (!Array.isArray(check.steps) || check.steps.length === 0) {
+            checkOk = false;
+            notes.push("Check has no steps.");
+          } else {
+            for (const st of check.steps) {
+              const r = await runOneStep(baseUrl, st);
+              stepResults.push(r);
 
-                if (!r.ok) {
-                  checkOk = false;
-                  if (opts.failFast) break;
-                }
+              if (!r.ok) {
+                checkOk = false;
+                if (opts.failFast) break;
               }
             }
           }
-
-          results.push({
-            feature: suite.feature,
-            contract: contract.name,
-            id: check.id,
-            ok: checkOk,
-            work_item: normalizedWorkItem,
-            notes,
-            steps: stepResults,
-          });
-
-          if (!checkOk) failed++;
-          if (opts.failFast && !checkOk) shouldStop = true;
         }
+
+        results.push({
+          feature: suite.feature,
+          contract: contract.name,
+          id: check.id,
+          ok: checkOk,
+          work_item: normalizedWorkItem,
+          notes,
+          steps: stepResults,
+        });
+
+        if (!checkOk) failed++;
+        if (opts.failFast && !checkOk) shouldStop = true;
       }
     }
+  }
 
-    const report = {
-      report_version: 1,
-      base_url: baseUrl,
-      total,
-      failed,
-      passed: Math.max(0, total - failed),
-      ok: failed === 0,
-      results,
-    };
+  const report = {
+    report_version: 1,
+    base_url: baseUrl,
+    total,
+    failed,
+    passed: Math.max(0, total - failed),
+    ok: failed === 0,
+    results,
+  };
 
-    const out = path.resolve(process.cwd(), opts.report);
+  const out = path.resolve(process.cwd(), opts.report);
+  console.log(`📝 Writing report to: ${out}`);
 
-    fs.mkdirSync(path.dirname(out), { recursive: true });
-    fs.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
 
-    console.log("--- STONEY_REPORT_START ---");
-    console.log(JSON.stringify(report));
-    console.log("--- STONEY_REPORT_END ---");
+  console.log(`✅ Report written (${report.total} checks, ${report.failed} failed)`);
+  console.log("--- STONEY_REPORT_START ---");
+  console.log(JSON.stringify(report));
+  console.log("--- STONEY_REPORT_END ---");
 
-    await sendTelemetry(report);
+  await sendTelemetry(report);
 
-    process.exit(failed === 0 ? 0 : 1);
-  });
+  process.exit(failed === 0 ? 0 : 1);
+}
 
 program.command("init").description("Initialize Stoney").action(() => {
   const dir = ".stoney";
@@ -405,6 +430,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
+  const message = err instanceof Error ? err.stack || err.message : String(err);
   fatal(message);
 });

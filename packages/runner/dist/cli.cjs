@@ -21403,6 +21403,17 @@ async function runExecStep(step, expect) {
 var import_meta = {};
 var program2 = new Command();
 var TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
+process.on("unhandledRejection", (reason) => {
+  const message = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  console.error(`\u274C Unhandled rejection in Stoney CLI:
+${message}`);
+  process.exit(2);
+});
+process.on("uncaughtException", (err) => {
+  console.error(`\u274C Uncaught exception in Stoney CLI:
+${err.stack || err.message}`);
+  process.exit(2);
+});
 function readVersion() {
   try {
     const __filename = (0, import_node_url.fileURLToPath)(import_meta.url);
@@ -21515,25 +21526,38 @@ async function sendTelemetry(report) {
   }
 }
 async function runOneStep(baseUrl, st) {
-  if ("http" in st) {
-    if (!baseUrl) {
-      return {
-        ok: false,
-        kind: "http",
-        title: `http ${st.http.method} ${st.http.path}`,
-        notes: ["Missing base_url."]
-      };
+  try {
+    if ("http" in st) {
+      if (!baseUrl) {
+        return {
+          ok: false,
+          kind: "http",
+          title: `http ${st.http.method} ${st.http.path}`,
+          notes: ["Missing base_url."]
+        };
+      }
+      return await runHttpStep(baseUrl, st.http, st.expect);
     }
-    return runHttpStep(baseUrl, st.http, st.expect);
+    if ("exec" in st) return await runExecStep(st.exec, st.expect);
+    if ("sql" in st) return await runSqlStep(st.sql, st.expect);
+    return {
+      ok: false,
+      kind: "exec",
+      title: "unknown",
+      notes: ["Unknown step type."]
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack ?? "" : "";
+    console.error(`\u274C Step threw unexpectedly: ${message}
+${stack}`);
+    return {
+      ok: false,
+      kind: "exec",
+      title: "step error",
+      notes: [`Step threw: ${message}`]
+    };
   }
-  if ("exec" in st) return runExecStep(st.exec, st.expect);
-  if ("sql" in st) return runSqlStep(st.sql, st.expect);
-  return {
-    ok: false,
-    kind: "exec",
-    title: "unknown",
-    notes: ["Unknown step type."]
-  };
 }
 function pickString(value) {
   return typeof value === "string" ? value : void 0;
@@ -21577,10 +21601,19 @@ program2.command("parse").argument("<file>", "Contract file (.yml/.yaml or .json
   console.log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
 });
 program2.command("run").requiredOption("--suite <glob>", "Contract file path or glob (e.g. contracts/*.yml)").option("--base-url <url>", "Base URL").option("--report <path>", "JSON report output path", "stoney-report.json").option("--only-contract <name>", "Run only one contract by name").option("--only-check <id>", "Run only one check id").option("--fail-fast", "Stop on first failure", false).option("--require-work-item", "Require work_item on every check", false).option("--work-item-pattern <regex>", "Regex that work_item.key must match").allowUnknownOption(false).action(async (opts) => {
+  try {
+    await runCommand(opts);
+  } catch (err) {
+    const message = err instanceof Error ? err.stack || err.message : String(err);
+    console.error(`\u274C Stoney run failed with unhandled error:
+${message}`);
+    process.exit(2);
+  }
+});
+async function runCommand(opts) {
   const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
-  const argv = process.argv.slice(2);
-  const cleanArgv = argv.filter((a) => a.trim() !== "");
-  const userSpecifiedRequire = didUserPassFlag(cleanArgv, "--require-work-item");
+  const argv = process.argv.slice(2).filter((a) => a.trim() !== "");
+  const userSpecifiedRequire = didUserPassFlag(argv, "--require-work-item");
   const requireWorkItem = userSpecifiedRequire ? Boolean(opts.requireWorkItem) : envFlag("STONEY_REQUIRE_WORK_ITEM");
   const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
   const pattern = patternRaw ? safeRegex2(patternRaw) : null;
@@ -21669,14 +21702,16 @@ program2.command("run").requiredOption("--suite <glob>", "Contract file path or 
     results
   };
   const out = import_node_path4.default.resolve(process.cwd(), opts.report);
+  console.log(`\u{1F4DD} Writing report to: ${out}`);
   import_node_fs3.default.mkdirSync(import_node_path4.default.dirname(out), { recursive: true });
   import_node_fs3.default.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
+  console.log(`\u2705 Report written (${report.total} checks, ${report.failed} failed)`);
   console.log("--- STONEY_REPORT_START ---");
   console.log(JSON.stringify(report));
   console.log("--- STONEY_REPORT_END ---");
   await sendTelemetry(report);
   process.exit(failed === 0 ? 0 : 1);
-});
+}
 program2.command("init").description("Initialize Stoney").action(() => {
   const dir = ".stoney";
   const filePath = import_node_path4.default.join(dir, "example.yml");
@@ -21692,7 +21727,7 @@ async function main() {
   await program2.parseAsync(process.argv);
 }
 main().catch((err) => {
-  const message = err instanceof Error ? err.message : String(err);
+  const message = err instanceof Error ? err.stack || err.message : String(err);
   fatal(message);
 });
 /*! Bundled license information:
