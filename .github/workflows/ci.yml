@@ -33,6 +33,17 @@ jobs:
           test -f packages/runner/dist/cli.cjs
           node packages/runner/dist/cli.cjs hello
 
+      - name: Smoke test run command
+        run: |
+          set -euo pipefail
+          node packages/runner/dist/cli.cjs run \
+            --suite "contracts/smoke.yml" \
+            --report "smoke-report.json" \
+            --require-work-item \
+            --work-item-pattern "^KAN-\\d+$"
+
+          test -f smoke-report.json
+
       - name: Ensure dist is committed
         run: |
           set -euo pipefail

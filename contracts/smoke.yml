@@ -1,0 +1,15 @@
+version: 1
+feature: "smoke"
+
+contracts:
+  - name: "smoke"
+    checks:
+      - id: "SMOKE-1"
+        work_item:
+          key: "KAN-1"
+        steps:
+          - exec:
+              command: echo
+              args: ["hello"]
+            expect:
+              exit_code: 0

@@ -5,6 +5,9 @@
   "type": "module",
   "main": "./dist/schema.js",
   "types": "./dist/schema.d.ts",
+  "bin": {
+    "stoney": "./dist/cli.cjs"
+  },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
