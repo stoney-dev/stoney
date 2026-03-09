@@ -13,14 +13,17 @@ export default defineConfig([
     minify: false,
     sourcemap: true,
     dts: false,
+    // pg must be external — it uses dynamic requires and native addons
+    // that silently break when bundled into a single CJS file.
+    // All other deps are safe to bundle.
     noExternal: [
       "commander",
       "fast-glob",
       "js-yaml",
-      "pg",
       "zod",
       "zod-to-json-schema"
     ],
+    external: ["pg", "pg-native"],
     outExtension() {
       return { js: ".cjs" };
     }
