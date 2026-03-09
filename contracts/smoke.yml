@@ -1,15 +1,17 @@
 version: 1
-feature: "smoke"
+feature: smoke
+description: Minimal exec smoke test
 
 contracts:
-  - name: "smoke"
+  - name: exec_smoke
+    description: Verifies bundled CLI can parse and run a simple exec contract
     checks:
-      - id: "SMOKE-1"
-        work_item:
-          key: "KAN-1"
+      - id: smoke_exec
+        work_item: "KAN-1"
+        says: "Runner can execute a basic shell command"
         steps:
           - exec:
-              command: echo
-              args: ["hello"]
+              run: "echo hello"
             expect:
               exit_code: 0
+              stdout_contains: "hello"
