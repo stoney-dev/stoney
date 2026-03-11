@@ -6,6 +6,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
@@ -30,10 +33,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
+// ../../node_modules/.pnpm/tsup@8.5.1_typescript@5.9.3/node_modules/tsup/assets/cjs_shims.js
+var init_cjs_shims = __esm({
+  "../../node_modules/.pnpm/tsup@8.5.1_typescript@5.9.3/node_modules/tsup/assets/cjs_shims.js"() {
+    "use strict";
+  }
+});
+
 // ../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/array.js
 var require_array = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/array.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.splitWhen = exports2.flatten = void 0;
     function flatten(items) {
@@ -61,6 +72,7 @@ var require_array = __commonJS({
 var require_errno = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/errno.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.isEnoentCodeError = void 0;
     function isEnoentCodeError(error) {
@@ -74,6 +86,7 @@ var require_errno = __commonJS({
 var require_fs = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/fs.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.createDirentFromStats = void 0;
     var DirentFromStats = class {
@@ -99,6 +112,7 @@ var require_fs = __commonJS({
 var require_path = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/path.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.convertPosixPathToPattern = exports2.convertWindowsPathToPattern = exports2.convertPathToPattern = exports2.escapePosixPath = exports2.escapeWindowsPath = exports2.escape = exports2.removeLeadingDotSegment = exports2.makeAbsolute = exports2.unixify = void 0;
     var os = require("os");
@@ -152,6 +166,7 @@ var require_path = __commonJS({
 var require_is_extglob = __commonJS({
   "../../node_modules/.pnpm/is-extglob@2.1.1/node_modules/is-extglob/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     module2.exports = function isExtglob(str2) {
       if (typeof str2 !== "string" || str2 === "") {
         return false;
@@ -170,6 +185,7 @@ var require_is_extglob = __commonJS({
 var require_is_glob = __commonJS({
   "../../node_modules/.pnpm/is-glob@4.0.3/node_modules/is-glob/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var isExtglob = require_is_extglob();
     var chars = { "{": "}", "(": ")", "[": "]" };
     var strictCheck = function(str2) {
@@ -302,6 +318,7 @@ var require_is_glob = __commonJS({
 var require_glob_parent = __commonJS({
   "../../node_modules/.pnpm/glob-parent@5.1.2/node_modules/glob-parent/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var isGlob = require_is_glob();
     var pathPosixDirname = require("path").posix.dirname;
     var isWin32 = require("os").platform() === "win32";
@@ -331,6 +348,7 @@ var require_glob_parent = __commonJS({
 var require_utils = __commonJS({
   "../../node_modules/.pnpm/braces@3.0.3/node_modules/braces/lib/utils.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     exports2.isInteger = (num) => {
       if (typeof num === "number") {
         return Number.isInteger(num);
@@ -413,6 +431,7 @@ var require_utils = __commonJS({
 var require_stringify = __commonJS({
   "../../node_modules/.pnpm/braces@3.0.3/node_modules/braces/lib/stringify.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var utils = require_utils();
     module2.exports = (ast, options = {}) => {
       const stringify = (node, parent = {}) => {
@@ -444,6 +463,7 @@ var require_stringify = __commonJS({
 var require_is_number = __commonJS({
   "../../node_modules/.pnpm/is-number@7.0.0/node_modules/is-number/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     module2.exports = function(num) {
       if (typeof num === "number") {
         return num - num === 0;
@@ -460,6 +480,7 @@ var require_is_number = __commonJS({
 var require_to_regex_range = __commonJS({
   "../../node_modules/.pnpm/to-regex-range@5.0.1/node_modules/to-regex-range/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var isNumber = require_is_number();
     var toRegexRange = (min, max, options) => {
       if (isNumber(min) === false) {
@@ -671,6 +692,7 @@ var require_to_regex_range = __commonJS({
 var require_fill_range = __commonJS({
   "../../node_modules/.pnpm/fill-range@7.1.1/node_modules/fill-range/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var util2 = require("util");
     var toRegexRange = require_to_regex_range();
     var isObject2 = (val) => val !== null && typeof val === "object" && !Array.isArray(val);
@@ -865,6 +887,7 @@ var require_fill_range = __commonJS({
 var require_compile = __commonJS({
   "../../node_modules/.pnpm/braces@3.0.3/node_modules/braces/lib/compile.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var fill = require_fill_range();
     var utils = require_utils();
     var compile = (ast, options = {}) => {
@@ -917,6 +940,7 @@ var require_compile = __commonJS({
 var require_expand = __commonJS({
   "../../node_modules/.pnpm/braces@3.0.3/node_modules/braces/lib/expand.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var fill = require_fill_range();
     var stringify = require_stringify();
     var utils = require_utils();
@@ -1011,6 +1035,7 @@ var require_expand = __commonJS({
 var require_constants = __commonJS({
   "../../node_modules/.pnpm/braces@3.0.3/node_modules/braces/lib/constants.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     module2.exports = {
       MAX_LENGTH: 1e4,
       // Digits
@@ -1112,6 +1137,7 @@ var require_constants = __commonJS({
 var require_parse = __commonJS({
   "../../node_modules/.pnpm/braces@3.0.3/node_modules/braces/lib/parse.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var stringify = require_stringify();
     var {
       MAX_LENGTH,
@@ -1350,6 +1376,7 @@ var require_parse = __commonJS({
 var require_braces = __commonJS({
   "../../node_modules/.pnpm/braces@3.0.3/node_modules/braces/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var stringify = require_stringify();
     var compile = require_compile();
     var expand = require_expand();
@@ -1413,6 +1440,7 @@ var require_braces = __commonJS({
 var require_constants2 = __commonJS({
   "../../node_modules/.pnpm/picomatch@2.3.1/node_modules/picomatch/lib/constants.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var path5 = require("path");
     var WIN_SLASH = "\\\\/";
     var WIN_NO_SLASH = `[^${WIN_SLASH}]`;
@@ -1610,6 +1638,7 @@ var require_constants2 = __commonJS({
 var require_utils2 = __commonJS({
   "../../node_modules/.pnpm/picomatch@2.3.1/node_modules/picomatch/lib/utils.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     var path5 = require("path");
     var win32 = process.platform === "win32";
     var {
@@ -1671,6 +1700,7 @@ var require_utils2 = __commonJS({
 var require_scan = __commonJS({
   "../../node_modules/.pnpm/picomatch@2.3.1/node_modules/picomatch/lib/scan.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var utils = require_utils2();
     var {
       CHAR_ASTERISK: CHAR_ASTERISK2,
@@ -2001,6 +2031,7 @@ var require_scan = __commonJS({
 var require_parse2 = __commonJS({
   "../../node_modules/.pnpm/picomatch@2.3.1/node_modules/picomatch/lib/parse.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var constants = require_constants2();
     var utils = require_utils2();
     var {
@@ -2774,6 +2805,7 @@ var require_parse2 = __commonJS({
 var require_picomatch = __commonJS({
   "../../node_modules/.pnpm/picomatch@2.3.1/node_modules/picomatch/lib/picomatch.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var path5 = require("path");
     var scan = require_scan();
     var parse = require_parse2();
@@ -2915,6 +2947,7 @@ var require_picomatch = __commonJS({
 var require_picomatch2 = __commonJS({
   "../../node_modules/.pnpm/picomatch@2.3.1/node_modules/picomatch/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     module2.exports = require_picomatch();
   }
 });
@@ -2923,6 +2956,7 @@ var require_picomatch2 = __commonJS({
 var require_micromatch = __commonJS({
   "../../node_modules/.pnpm/micromatch@4.0.8/node_modules/micromatch/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var util2 = require("util");
     var braces = require_braces();
     var picomatch = require_picomatch2();
@@ -3084,6 +3118,7 @@ var require_micromatch = __commonJS({
 var require_pattern = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/pattern.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.isAbsolute = exports2.partitionAbsoluteAndRelative = exports2.removeDuplicateSlashes = exports2.matchAny = exports2.convertPatternsToRe = exports2.makeRe = exports2.getPatternParts = exports2.expandBraceExpansion = exports2.expandPatternsWithBraceExpansion = exports2.isAffectDepthOfReadingPattern = exports2.endsWithSlashGlobStar = exports2.hasGlobStar = exports2.getBaseDirectory = exports2.isPatternRelatedToParentDirectory = exports2.getPatternsOutsideCurrentDirectory = exports2.getPatternsInsideCurrentDirectory = exports2.getPositivePatterns = exports2.getNegativePatterns = exports2.isPositivePattern = exports2.isNegativePattern = exports2.convertToNegativePattern = exports2.convertToPositivePattern = exports2.isDynamicPattern = exports2.isStaticPattern = void 0;
     var path5 = require("path");
@@ -3249,6 +3284,7 @@ var require_pattern = __commonJS({
 var require_merge2 = __commonJS({
   "../../node_modules/.pnpm/merge2@1.4.1/node_modules/merge2/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var Stream = require("stream");
     var PassThrough = Stream.PassThrough;
     var slice = Array.prototype.slice;
@@ -3368,6 +3404,7 @@ var require_merge2 = __commonJS({
 var require_stream = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/stream.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.merge = void 0;
     var merge2 = require_merge2();
@@ -3391,6 +3428,7 @@ var require_stream = __commonJS({
 var require_string = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/string.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.isEmpty = exports2.isString = void 0;
     function isString(input) {
@@ -3408,6 +3446,7 @@ var require_string = __commonJS({
 var require_utils3 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/index.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.string = exports2.stream = exports2.pattern = exports2.path = exports2.fs = exports2.errno = exports2.array = void 0;
     var array = require_array();
@@ -3431,6 +3470,7 @@ var require_utils3 = __commonJS({
 var require_tasks = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/managers/tasks.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.convertPatternGroupToTask = exports2.convertPatternGroupsToTasks = exports2.groupPatternsByBaseDirectory = exports2.getNegativePatternsAsPositive = exports2.getPositivePatterns = exports2.convertPatternsToTasks = exports2.generate = void 0;
     var utils = require_utils3();
@@ -3527,6 +3567,7 @@ var require_tasks = __commonJS({
 var require_async = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.stat@2.0.5/node_modules/@nodelib/fs.stat/out/providers/async.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.read = void 0;
     function read(path5, settings, callback) {
@@ -3569,6 +3610,7 @@ var require_async = __commonJS({
 var require_sync = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.stat@2.0.5/node_modules/@nodelib/fs.stat/out/providers/sync.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.read = void 0;
     function read(path5, settings) {
@@ -3597,6 +3639,7 @@ var require_sync = __commonJS({
 var require_fs2 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.stat@2.0.5/node_modules/@nodelib/fs.stat/out/adapters/fs.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.createFileSystemAdapter = exports2.FILE_SYSTEM_ADAPTER = void 0;
     var fs4 = require("fs");
@@ -3620,6 +3663,7 @@ var require_fs2 = __commonJS({
 var require_settings = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.stat@2.0.5/node_modules/@nodelib/fs.stat/out/settings.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var fs4 = require_fs2();
     var Settings = class {
@@ -3642,6 +3686,7 @@ var require_settings = __commonJS({
 var require_out = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.stat@2.0.5/node_modules/@nodelib/fs.stat/out/index.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.statSync = exports2.stat = exports2.Settings = void 0;
     var async = require_async();
@@ -3674,6 +3719,7 @@ var require_out = __commonJS({
 var require_queue_microtask = __commonJS({
   "../../node_modules/.pnpm/queue-microtask@1.2.3/node_modules/queue-microtask/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var promise;
     module2.exports = typeof queueMicrotask === "function" ? queueMicrotask.bind(typeof window !== "undefined" ? window : global) : (cb) => (promise || (promise = Promise.resolve())).then(cb).catch((err) => setTimeout(() => {
       throw err;
@@ -3685,6 +3731,7 @@ var require_queue_microtask = __commonJS({
 var require_run_parallel = __commonJS({
   "../../node_modules/.pnpm/run-parallel@1.2.0/node_modules/run-parallel/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     module2.exports = runParallel;
     var queueMicrotask2 = require_queue_microtask();
     function runParallel(tasks, cb) {
@@ -3736,6 +3783,7 @@ var require_run_parallel = __commonJS({
 var require_constants3 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.scandir@2.1.5/node_modules/@nodelib/fs.scandir/out/constants.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.IS_SUPPORT_READDIR_WITH_FILE_TYPES = void 0;
     var NODE_PROCESS_VERSION_PARTS = process.versions.node.split(".");
@@ -3756,6 +3804,7 @@ var require_constants3 = __commonJS({
 var require_fs3 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.scandir@2.1.5/node_modules/@nodelib/fs.scandir/out/utils/fs.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.createDirentFromStats = void 0;
     var DirentFromStats = class {
@@ -3781,6 +3830,7 @@ var require_fs3 = __commonJS({
 var require_utils4 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.scandir@2.1.5/node_modules/@nodelib/fs.scandir/out/utils/index.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.fs = void 0;
     var fs4 = require_fs3();
@@ -3792,6 +3842,7 @@ var require_utils4 = __commonJS({
 var require_common = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.scandir@2.1.5/node_modules/@nodelib/fs.scandir/out/providers/common.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.joinPathSegments = void 0;
     function joinPathSegments(a, b, separator) {
@@ -3808,6 +3859,7 @@ var require_common = __commonJS({
 var require_async2 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.scandir@2.1.5/node_modules/@nodelib/fs.scandir/out/providers/async.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.readdir = exports2.readdirWithFileTypes = exports2.read = void 0;
     var fsStat = require_out();
@@ -3918,6 +3970,7 @@ var require_async2 = __commonJS({
 var require_sync2 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.scandir@2.1.5/node_modules/@nodelib/fs.scandir/out/providers/sync.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.readdir = exports2.readdirWithFileTypes = exports2.read = void 0;
     var fsStat = require_out();
@@ -3977,6 +4030,7 @@ var require_sync2 = __commonJS({
 var require_fs4 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.scandir@2.1.5/node_modules/@nodelib/fs.scandir/out/adapters/fs.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.createFileSystemAdapter = exports2.FILE_SYSTEM_ADAPTER = void 0;
     var fs4 = require("fs");
@@ -4002,6 +4056,7 @@ var require_fs4 = __commonJS({
 var require_settings2 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.scandir@2.1.5/node_modules/@nodelib/fs.scandir/out/settings.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var path5 = require("path");
     var fsStat = require_out();
@@ -4032,6 +4087,7 @@ var require_settings2 = __commonJS({
 var require_out2 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.scandir@2.1.5/node_modules/@nodelib/fs.scandir/out/index.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.Settings = exports2.scandirSync = exports2.scandir = void 0;
     var async = require_async2();
@@ -4064,6 +4120,7 @@ var require_out2 = __commonJS({
 var require_reusify = __commonJS({
   "../../node_modules/.pnpm/reusify@1.1.0/node_modules/reusify/reusify.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     function reusify(Constructor) {
       var head = new Constructor();
       var tail = head;
@@ -4095,6 +4152,7 @@ var require_reusify = __commonJS({
 var require_queue = __commonJS({
   "../../node_modules/.pnpm/fastq@1.20.1/node_modules/fastq/queue.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var reusify = require_reusify();
     function fastqueue(context, worker, _concurrency) {
       if (typeof context === "function") {
@@ -4379,6 +4437,7 @@ var require_queue = __commonJS({
 var require_common2 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.walk@1.2.8/node_modules/@nodelib/fs.walk/out/readers/common.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.joinPathSegments = exports2.replacePathSegmentSeparator = exports2.isAppliedFilter = exports2.isFatalError = void 0;
     function isFatalError(settings, error) {
@@ -4413,6 +4472,7 @@ var require_common2 = __commonJS({
 var require_reader = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.walk@1.2.8/node_modules/@nodelib/fs.walk/out/readers/reader.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var common2 = require_common2();
     var Reader = class {
@@ -4430,6 +4490,7 @@ var require_reader = __commonJS({
 var require_async3 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.walk@1.2.8/node_modules/@nodelib/fs.walk/out/readers/async.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var events_1 = require("events");
     var fsScandir = require_out2();
@@ -4533,6 +4594,7 @@ var require_async3 = __commonJS({
 var require_async4 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.walk@1.2.8/node_modules/@nodelib/fs.walk/out/providers/async.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var async_1 = require_async3();
     var AsyncProvider = class {
@@ -4569,6 +4631,7 @@ var require_async4 = __commonJS({
 var require_stream2 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.walk@1.2.8/node_modules/@nodelib/fs.walk/out/providers/stream.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var stream_1 = require("stream");
     var async_1 = require_async3();
@@ -4610,6 +4673,7 @@ var require_stream2 = __commonJS({
 var require_sync3 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.walk@1.2.8/node_modules/@nodelib/fs.walk/out/readers/sync.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var fsScandir = require_out2();
     var common2 = require_common2();
@@ -4674,6 +4738,7 @@ var require_sync3 = __commonJS({
 var require_sync4 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.walk@1.2.8/node_modules/@nodelib/fs.walk/out/providers/sync.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var sync_1 = require_sync3();
     var SyncProvider = class {
@@ -4694,6 +4759,7 @@ var require_sync4 = __commonJS({
 var require_settings3 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.walk@1.2.8/node_modules/@nodelib/fs.walk/out/settings.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var path5 = require("path");
     var fsScandir = require_out2();
@@ -4726,6 +4792,7 @@ var require_settings3 = __commonJS({
 var require_out3 = __commonJS({
   "../../node_modules/.pnpm/@nodelib+fs.walk@1.2.8/node_modules/@nodelib/fs.walk/out/index.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.Settings = exports2.walkStream = exports2.walkSync = exports2.walk = void 0;
     var async_1 = require_async4();
@@ -4766,6 +4833,7 @@ var require_out3 = __commonJS({
 var require_reader2 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/readers/reader.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var path5 = require("path");
     var fsStat = require_out();
@@ -4805,6 +4873,7 @@ var require_reader2 = __commonJS({
 var require_stream3 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/readers/stream.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var stream_1 = require("stream");
     var fsStat = require_out();
@@ -4862,6 +4931,7 @@ var require_stream3 = __commonJS({
 var require_async5 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/readers/async.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var fsWalk = require_out3();
     var reader_1 = require_reader2();
@@ -4901,6 +4971,7 @@ var require_async5 = __commonJS({
 var require_matcher = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/providers/matchers/matcher.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var utils = require_utils3();
     var Matcher = class {
@@ -4952,6 +5023,7 @@ var require_matcher = __commonJS({
 var require_partial = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/providers/matchers/partial.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var matcher_1 = require_matcher();
     var PartialMatcher = class extends matcher_1.default {
@@ -4989,6 +5061,7 @@ var require_partial = __commonJS({
 var require_deep = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/providers/filters/deep.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var utils = require_utils3();
     var partial_1 = require_partial();
@@ -5054,6 +5127,7 @@ var require_deep = __commonJS({
 var require_entry = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/providers/filters/entry.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var utils = require_utils3();
     var EntryFilter = class {
@@ -5142,6 +5216,7 @@ var require_entry = __commonJS({
 var require_error = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/providers/filters/error.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var utils = require_utils3();
     var ErrorFilter = class {
@@ -5163,6 +5238,7 @@ var require_error = __commonJS({
 var require_entry2 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/providers/transformers/entry.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var utils = require_utils3();
     var EntryTransformer = class {
@@ -5195,6 +5271,7 @@ var require_entry2 = __commonJS({
 var require_provider = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/providers/provider.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var path5 = require("path");
     var deep_1 = require_deep();
@@ -5249,6 +5326,7 @@ var require_provider = __commonJS({
 var require_async6 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/providers/async.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var async_1 = require_async5();
     var provider_1 = require_provider();
@@ -5278,6 +5356,7 @@ var require_async6 = __commonJS({
 var require_stream4 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/providers/stream.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var stream_1 = require("stream");
     var stream_2 = require_stream3();
@@ -5312,6 +5391,7 @@ var require_stream4 = __commonJS({
 var require_sync5 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/readers/sync.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var fsStat = require_out();
     var fsWalk = require_out3();
@@ -5360,6 +5440,7 @@ var require_sync5 = __commonJS({
 var require_sync6 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/providers/sync.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     var sync_1 = require_sync5();
     var provider_1 = require_provider();
@@ -5389,6 +5470,7 @@ var require_sync6 = __commonJS({
 var require_settings4 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/settings.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.DEFAULT_FILE_SYSTEM_ADAPTER = void 0;
     var fs4 = require("fs");
@@ -5449,6 +5531,7 @@ var require_settings4 = __commonJS({
 var require_out4 = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/index.js"(exports2, module2) {
     "use strict";
+    init_cjs_shims();
     var taskManager = require_tasks();
     var async_1 = require_async6();
     var stream_1 = require_stream4();
@@ -5550,6 +5633,7 @@ var require_out4 = __commonJS({
 var require_error2 = __commonJS({
   "../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/lib/error.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     var CommanderError3 = class extends Error {
       /**
        * Constructs the CommanderError class
@@ -5586,6 +5670,7 @@ var require_error2 = __commonJS({
 var require_argument = __commonJS({
   "../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/lib/argument.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     var { InvalidArgumentError: InvalidArgumentError2 } = require_error2();
     var Argument2 = class {
       /**
@@ -5715,6 +5800,7 @@ var require_argument = __commonJS({
 var require_help = __commonJS({
   "../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/lib/help.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     var { humanReadableArgName } = require_argument();
     var Help2 = class {
       constructor() {
@@ -6318,6 +6404,7 @@ ${itemIndentStr}`);
 var require_option = __commonJS({
   "../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/lib/option.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     var { InvalidArgumentError: InvalidArgumentError2 } = require_error2();
     var Option2 = class {
       /**
@@ -6632,6 +6719,7 @@ var require_option = __commonJS({
 var require_suggestSimilar = __commonJS({
   "../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/lib/suggestSimilar.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     var maxDistance = 3;
     function editDistance(a, b) {
       if (Math.abs(a.length - b.length) > maxDistance)
@@ -6713,6 +6801,7 @@ var require_suggestSimilar = __commonJS({
 var require_command = __commonJS({
   "../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/lib/command.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     var EventEmitter = require("events").EventEmitter;
     var childProcess = require("child_process");
     var path5 = require("path");
@@ -8960,6 +9049,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
 var require_commander = __commonJS({
   "../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/index.js"(exports2) {
     "use strict";
+    init_cjs_shims();
     var { Argument: Argument2 } = require_argument();
     var { Command: Command2 } = require_command();
     var { CommanderError: CommanderError3, InvalidArgumentError: InvalidArgumentError2 } = require_error2();
@@ -8980,12 +9070,14 @@ var require_commander = __commonJS({
 });
 
 // src/cli.ts
+init_cjs_shims();
 var import_node_fs3 = __toESM(require("fs"), 1);
 var import_node_path4 = __toESM(require("path"), 1);
 var import_node_crypto2 = __toESM(require("crypto"), 1);
 var import_fast_glob = __toESM(require_out4(), 1);
 
 // ../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/esm.mjs
+init_cjs_shims();
 var import_index = __toESM(require_commander(), 1);
 var {
   program,
@@ -9002,13 +9094,12 @@ var {
   Help
 } = import_index.default;
 
-// src/cli.ts
-var import_node_url = require("url");
-
 // src/sql.ts
+init_cjs_shims();
 var import_pg = __toESM(require("pg"), 1);
 
 // src/match.ts
+init_cjs_shims();
 function isObj(x) {
   return !!x && typeof x === "object" && !Array.isArray(x);
 }
@@ -9164,10 +9255,12 @@ async function runSqlStep(step, expect) {
 }
 
 // src/contract.ts
+init_cjs_shims();
 var import_node_fs = __toESM(require("fs"), 1);
 var import_node_path = __toESM(require("path"), 1);
 
 // ../../node_modules/.pnpm/js-yaml@4.1.1/node_modules/js-yaml/dist/js-yaml.mjs
+init_cjs_shims();
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -11792,6 +11885,7 @@ var jsYaml = {
 };
 
 // src/env.ts
+init_cjs_shims();
 function isObj2(x) {
   return !!x && typeof x === "object" && !Array.isArray(x);
 }
@@ -11808,6 +11902,12 @@ function interpolate(input) {
   }
   return input;
 }
+
+// src/schema.ts
+init_cjs_shims();
+
+// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/index.js
+init_cjs_shims();
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
 var external_exports = {};
@@ -11920,8 +12020,19 @@ __export(external_exports, {
   util: () => util,
   void: () => voidType
 });
+init_cjs_shims();
+
+// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/errors.js
+init_cjs_shims();
+
+// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/locales/en.js
+init_cjs_shims();
+
+// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/ZodError.js
+init_cjs_shims();
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/helpers/util.js
+init_cjs_shims();
 var util;
 (function(util2) {
   util2.assertEqual = (_) => {
@@ -12286,6 +12397,7 @@ function getErrorMap() {
 }
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/helpers/parseUtil.js
+init_cjs_shims();
 var makeIssue = (params) => {
   const { data, path: path5, errorMaps, issueData } = params;
   const fullPath = [...path5, ...issueData.path || []];
@@ -12395,7 +12507,11 @@ var isDirty = (x) => x.status === "dirty";
 var isValid = (x) => x.status === "valid";
 var isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
 
+// ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.js
+init_cjs_shims();
+
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/helpers/errorUtil.js
+init_cjs_shims();
 var errorUtil;
 (function(errorUtil2) {
   errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
@@ -15990,10 +16106,12 @@ ${errorMsg}`);
 }
 
 // src/http.ts
+init_cjs_shims();
 var import_node_fs2 = __toESM(require("fs"), 1);
 var import_node_path2 = __toESM(require("path"), 1);
 
 // src/fake.ts
+init_cjs_shims();
 var import_node_crypto = __toESM(require("crypto"), 1);
 function hashToUInt32(input) {
   const h = import_node_crypto.default.createHash("sha256").update(input).digest();
@@ -16217,6 +16335,7 @@ async function runHttpStep(baseUrl, step, expect) {
 }
 
 // src/exec.ts
+init_cjs_shims();
 var import_node_child_process = require("child_process");
 var import_node_path3 = __toESM(require("path"), 1);
 function sleep(ms) {
@@ -16375,9 +16494,10 @@ async function runExecStep(step, expect) {
 }
 
 // src/cli.ts
-var import_meta = {};
 var program2 = new Command();
 var TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
+var INGEST_ENDPOINT = "https://stoneydev.com/api/ingest";
+var DEFAULT_SUITE = "contracts/*.yml";
 process.on("unhandledRejection", (reason) => {
   const message = reason instanceof Error ? reason.stack || reason.message : String(reason);
   console.error(`\u274C Unhandled rejection in Stoney CLI:
@@ -16391,8 +16511,6 @@ ${err.stack || err.message}`);
 });
 function readVersion() {
   try {
-    const __filename = (0, import_node_url.fileURLToPath)(import_meta.url);
-    const __dirname = import_node_path4.default.dirname(__filename);
     const pkgPath = import_node_path4.default.resolve(__dirname, "../package.json");
     const raw = import_node_fs3.default.readFileSync(pkgPath, "utf8");
     const pkg = JSON.parse(raw);
@@ -16443,39 +16561,28 @@ function getInstallationId() {
     return `local:${import_node_crypto2.default.randomUUID()}`;
   }
 }
-function makeAnonUserId() {
-  const v = String(process.env.STONEY_USER_ID || "").trim();
-  return v ? v : null;
-}
 async function sendTelemetry(report) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5e3);
   const version = readVersion();
   const installation_id = getInstallationId();
-  const anon_user_id = makeAnonUserId();
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
-  const run_id = String(process.env.GITHUB_RUN_ID || "");
-  const workflow = String(process.env.GITHUB_WORKFLOW || "");
-  const actor = String(process.env.GITHUB_ACTOR || "");
-  const event_name = String(process.env.GITHUB_EVENT_NAME || "");
   const environment = repo_id !== "unknown" ? "github" : "local";
-  const metadata = {
-    kind: "stoney_run",
-    version,
-    installation_id,
-    anon_user_id,
-    environment,
-    repo_id,
-    run_id,
-    workflow,
-    actor,
-    event_name,
-    report
-  };
   const payload = {
     repo_id,
     status: report?.ok ? "pass" : "fail",
-    metadata
+    metadata: {
+      kind: "stoney_run",
+      version,
+      installation_id,
+      environment,
+      repo_id,
+      run_id: String(process.env.GITHUB_RUN_ID || ""),
+      workflow: String(process.env.GITHUB_WORKFLOW || ""),
+      actor: String(process.env.GITHUB_ACTOR || ""),
+      event_name: String(process.env.GITHUB_EVENT_NAME || ""),
+      report
+    }
   };
   try {
     const response = await fetch(TELEMETRY_ENDPOINT, {
@@ -16494,8 +16601,48 @@ async function sendTelemetry(report) {
     }
   } catch (err) {
     if (telemetryDebugEnabled()) {
-      console.warn("\u26A0\uFE0F  Stoney telemetry failed:", err?.message || String(err));
+      console.warn("\u26A0\uFE0F  Stoney telemetry error:", err?.message || String(err));
     }
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+async function pushToDashboard(report, token) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 1e4);
+  const version = readVersion();
+  const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
+  const run_id = String(process.env.GITHUB_RUN_ID || "");
+  const payload = {
+    repo_id,
+    git_sha: String(process.env.GITHUB_SHA || ""),
+    git_ref: String(process.env.GITHUB_REF || ""),
+    run_id,
+    run_url: run_id ? `https://github.com/${repo_id}/actions/runs/${run_id}` : "",
+    actor: String(process.env.GITHUB_ACTOR || ""),
+    event_name: String(process.env.GITHUB_EVENT_NAME || ""),
+    report
+  };
+  try {
+    const response = await fetch(INGEST_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": `stoney/${version}`,
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (response.ok) {
+      console.log(`\u{1F4CA} Report pushed to Stoney dashboard.`);
+    } else if (response.status === 401) {
+      console.warn(`\u26A0\uFE0F  Dashboard push failed: invalid STONEY_TOKEN \u2014 check your repo secret.`);
+    } else {
+      console.warn(`\u26A0\uFE0F  Dashboard push failed: HTTP ${response.status}`);
+    }
+  } catch (err) {
+    console.warn(`\u26A0\uFE0F  Dashboard push error: ${err?.message || String(err)}`);
   } finally {
     clearTimeout(timeoutId);
   }
@@ -16508,30 +16655,20 @@ async function runOneStep(baseUrl, st) {
           ok: false,
           kind: "http",
           title: `http ${st.http.method} ${st.http.path}`,
-          notes: ["Missing base_url."]
+          notes: ["Missing base_url. Pass --base-url or set STONEY_BASE_URL."]
         };
       }
       return await runHttpStep(baseUrl, st.http, st.expect);
     }
     if ("exec" in st) return await runExecStep(st.exec, st.expect);
     if ("sql" in st) return await runSqlStep(st.sql, st.expect);
-    return {
-      ok: false,
-      kind: "exec",
-      title: "unknown",
-      notes: ["Unknown step type."]
-    };
+    return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type."] };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack ?? "" : "";
     console.error(`\u274C Step threw unexpectedly: ${message}
 ${stack}`);
-    return {
-      ok: false,
-      kind: "exec",
-      title: "step error",
-      notes: [`Step threw: ${message}`]
-    };
+    return { ok: false, kind: "exec", title: "step error", notes: [`Step threw: ${message}`] };
   }
 }
 function pickString(value) {
@@ -16546,11 +16683,7 @@ function normalizeWorkItem(workItem, fallbackSays, fallbackLinks) {
   if (typeof workItem === "string") {
     const key = workItem.trim();
     if (!key) return void 0;
-    return {
-      key,
-      says: pickString(fallbackSays),
-      links: pickStringArray(fallbackLinks)
-    };
+    return { key, says: pickString(fallbackSays), links: pickStringArray(fallbackLinks) };
   }
   if (workItem && typeof workItem === "object") {
     const wi = workItem;
@@ -16564,18 +16697,43 @@ function normalizeWorkItem(workItem, fallbackSays, fallbackLinks) {
   }
   return void 0;
 }
-program2.name("stoney").description("Stoney \u2014 run contracts in CI.").version(readVersion()).exitOverride((err) => {
+program2.name("stoney").description("Stoney \u2014 Requirements-as-Code CI runner.").version(readVersion()).exitOverride((err) => {
   if (err.code !== "commander.helpDisplayed" && err.code !== "commander.version") {
     console.error(`\u274C Stoney CLI error: ${err.message}`);
   }
   process.exit(err.exitCode ?? 1);
 });
-program2.command("hello").action(() => console.log("\u{1FAA8} Stoney is alive."));
-program2.command("parse").argument("<file>", "Contract file (.yml/.yaml or .json)").option("--pretty", "Pretty-print JSON").action((file, opts) => {
+program2.command("hello").description("Smoke test \u2014 confirms the CLI is installed correctly").action(() => console.log("\u{1FAA8} Stoney is alive."));
+program2.command("parse").argument("<file>", "Contract file (.yml/.yaml or .json)").option("--pretty", "Pretty-print JSON").description("Parse and print a contract file as JSON").action((file, opts) => {
   const suite = loadSuite(file);
   console.log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
 });
-program2.command("run").requiredOption("--suite <glob>", "Contract file path or glob (e.g. contracts/*.yml)").option("--base-url <url>", "Base URL").option("--report <path>", "JSON report output path", "stoney-report.json").option("--only-contract <name>", "Run only one contract by name").option("--only-check <id>", "Run only one check id").option("--fail-fast", "Stop on first failure", false).option("--require-work-item", "Require work_item on every check", false).option("--work-item-pattern <regex>", "Regex that work_item.key must match").allowUnknownOption(false).action(async (opts) => {
+program2.command("validate").description("Parse and validate contracts without running them.").option("--suite <glob>", "Contract glob", DEFAULT_SUITE).action(async (opts) => {
+  const suitePaths = await (0, import_fast_glob.default)(opts.suite, { onlyFiles: true, unique: true });
+  if (!suitePaths.length) fatal(`No contract files matched: ${opts.suite}`);
+  console.log(`\u{1F50D} Validating ${suitePaths.length} file(s)...
+`);
+  let hasErrors = false;
+  for (const p of suitePaths) {
+    try {
+      const suite = loadSuite(p);
+      const checkCount = suite.contracts.reduce((n, c) => n + c.checks.length, 0);
+      console.log(`  \u2705 ${p}  (${suite.contracts.length} contract(s), ${checkCount} check(s))`);
+    } catch (e) {
+      console.error(`  \u274C ${p}
+     ${e?.message || String(e)}`);
+      hasErrors = true;
+    }
+  }
+  console.log();
+  if (hasErrors) {
+    console.error(`\u274C Validation failed \u2014 fix the errors above before running.`);
+    process.exit(1);
+  } else {
+    console.log(`\u2705 All contracts valid.`);
+  }
+});
+program2.command("run").description("Run contracts and fail CI on drift.").option("--suite <glob>", "Contract file path or glob", DEFAULT_SUITE).option("--base-url <url>", "Base URL for HTTP steps (or set STONEY_BASE_URL)").option("--report <path>", "JSON report output path", "stoney-report.json").option("--only-contract <n>", "Run only one contract by name").option("--only-check <id>", "Run only one check by id").option("--fail-fast", "Stop on first failure", false).option("--require-work-item", "Require work_item on every check", false).option("--work-item-pattern <regex>", "Regex that work_item.key must match").allowUnknownOption(false).action(async (opts) => {
   try {
     await runCommand(opts);
   } catch (err) {
@@ -16592,14 +16750,10 @@ async function runCommand(opts) {
   const requireWorkItem = userSpecifiedRequire ? Boolean(opts.requireWorkItem) : envFlag("STONEY_REQUIRE_WORK_ITEM");
   const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
   const pattern = patternRaw ? safeRegex2(patternRaw) : null;
-  if (patternRaw && !pattern) {
-    fatal(`Invalid --work-item-pattern regex: ${patternRaw}`);
-  }
+  if (patternRaw && !pattern) fatal(`Invalid --work-item-pattern regex: ${patternRaw}`);
   console.log(`\u{1F50D} Resolving suite glob: ${opts.suite} (cwd: ${process.cwd()})`);
   const suitePaths = await (0, import_fast_glob.default)(opts.suite, { onlyFiles: true, unique: true });
-  if (!suitePaths.length) {
-    fatal(`No contract files matched: ${opts.suite}`);
-  }
+  if (!suitePaths.length) fatal(`No contract files matched: ${opts.suite}`);
   console.log(`\u{1F4CB} Found ${suitePaths.length} contract file(s): ${suitePaths.join(", ")}`);
   const suites = [];
   for (const p of suitePaths) {
@@ -16633,9 +16787,7 @@ async function runCommand(opts) {
             notes.push("Missing work_item. Expected a work_item.key value.");
           } else if (pattern && !pattern.test(workItemKey)) {
             checkOk = false;
-            notes.push(
-              `work_item.key "${workItemKey}" does not match required pattern "${patternRaw}".`
-            );
+            notes.push(`work_item.key "${workItemKey}" does not match required pattern "${patternRaw}".`);
           }
         }
         if (checkOk) {
@@ -16685,18 +16837,59 @@ async function runCommand(opts) {
   console.log(JSON.stringify(report));
   console.log("--- STONEY_REPORT_END ---");
   await sendTelemetry(report);
+  const stoneyToken = String(process.env.STONEY_TOKEN || "").trim();
+  if (stoneyToken) {
+    await pushToDashboard(report, stoneyToken);
+  }
   process.exit(failed === 0 ? 0 : 1);
 }
-program2.command("init").description("Initialize Stoney").action(() => {
-  const dir = ".stoney";
+program2.command("init").description("Scaffold a starter contract in contracts/").action(() => {
+  const dir = "contracts";
   const filePath = import_node_path4.default.join(dir, "example.yml");
-  if (!import_node_fs3.default.existsSync(dir)) import_node_fs3.default.mkdirSync(dir);
-  if (import_node_fs3.default.existsSync(filePath)) return;
-  import_node_fs3.default.writeFileSync(
-    filePath,
-    `# yaml-language-server: $schema=https://stoneydev.com/schema.json`,
-    "utf8"
-  );
+  if (!import_node_fs3.default.existsSync(dir)) import_node_fs3.default.mkdirSync(dir, { recursive: true });
+  if (import_node_fs3.default.existsSync(filePath)) {
+    console.log(`\u26A0\uFE0F  ${filePath} already exists \u2014 skipping. Delete it to regenerate.`);
+    return;
+  }
+  const example = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
+version: 1
+feature: "Example Feature"
+description: "Starter contract \u2014 edit this to match your own rules."
+
+contracts:
+  - name: "Health Check"
+    description: "Verify the API is reachable and returns 200."
+    checks:
+      - id: health-check-passes
+        work_item: "ENG-1"
+        says: "The /health endpoint must return 200 OK"
+        steps:
+          - http:
+              method: GET
+              path: /health
+            expect:
+              status: 200
+
+  - name: "Auth Enforcement"
+    description: "Verify protected routes reject unauthenticated requests."
+    checks:
+      - id: protected-route-rejects-anonymous
+        work_item: "SEC-1"
+        says: "Unauthenticated requests to /api/me must be rejected with 401"
+        steps:
+          - http:
+              method: GET
+              path: /api/me
+            expect:
+              status: 401
+`;
+  import_node_fs3.default.writeFileSync(filePath, example, "utf8");
+  console.log(`\u2705 Created ${filePath}`);
+  console.log(`
+Next steps:`);
+  console.log(`  1. Edit contracts/example.yml to match your API`);
+  console.log(`  2. Run: stoney validate`);
+  console.log(`  3. Run: stoney run --base-url http://localhost:3000`);
 });
 async function main() {
   await program2.parseAsync(process.argv);

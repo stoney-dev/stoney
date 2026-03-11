@@ -156,7 +156,7 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
   } catch (e: any) {
     try {
       await client.query("ROLLBACK;");
-    } catch {}
+    } catch {} 
     return {
       ok: false,
       kind: "sql",

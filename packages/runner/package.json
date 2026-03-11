@@ -9,8 +9,8 @@
     "stoney": "./dist/cli.cjs"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
-    "access": "restricted"
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   },
   "exports": {
     "./schema": {
@@ -37,6 +37,7 @@
   ],
   "scripts": {
     "build": "tsup",
+    "prepare": "npm run build",
     "gen:schema": "tsx scripts/gen-schema.ts"
   },
   "dependencies": {

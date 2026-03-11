@@ -13,9 +13,7 @@ export default defineConfig([
     minify: false,
     sourcemap: true,
     dts: false,
-    // pg must be external — it uses dynamic requires and native addons
-    // that silently break when bundled into a single CJS file.
-    // All other deps are safe to bundle.
+    shims: true, // ← fixes import.meta.url → __dirname in CJS output
     noExternal: [
       "commander",
       "fast-glob",

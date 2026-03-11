@@ -1,61 +1,56 @@
 name: "Stoney Requirements-as-Code"
-description: "Run Stoney contracts against a base URL and report failures in CI."
+description: "Run Stoney contracts and enforce business rules in CI."
 
 inputs:
-  base_url:
-    description: "Base URL"
+  api_url:
+    description: "Base URL for HTTP contract steps. Use a repo secret: ${{ secrets.API_URL }}"
     required: false
 
   suite:
-    description: "Glob or file path"
+    description: "Glob pattern for contract files"
     required: false
     default: "contracts/*.yml"
 
-  token:
-    description: "Bearer token"
+  stoney_token:
+    description: "Stoney dashboard token for premium users. Use a repo secret: ${{ secrets.STONEY_TOKEN }}"
+    required: false
+
+  db_url:
+    description: "Postgres connection string for SQL steps. Use a repo secret: ${{ secrets.DB_URL }}"
     required: false
 
   timeout_ms:
-    description: "Request timeout"
+    description: "Per-request timeout in milliseconds"
     required: false
     default: "15000"
 
   retries:
-    description: "Retry count"
+    description: "Retry count for flaky HTTP steps"
     required: false
     default: "2"
 
   fail_fast:
-    description: "Stop on failure"
+    description: "Stop on first failure"
     required: false
     default: "false"
 
   report:
-    description: "Report path"
+    description: "Output path for the JSON report"
     required: false
     default: "stoney-report.json"
 
   artifact_name:
-    description: "Artifact name"
+    description: "Name of the uploaded artifact"
     required: false
     default: "stoney-report"
 
-  comment_pr:
-    description: "Post PR comment"
-    required: false
-    default: "true"
-
   require_work_item:
-    description: "Require work_item"
+    description: "Fail if any check is missing a work_item"
     required: false
     default: "false"
 
   work_item_pattern:
-    description: "Regex for work_item.key"
-    required: false
-
-  db_url:
-    description: "DB connection string"
+    description: "Regex that work_item.key must match (e.g. ^KAN-\\d+$)"
     required: false
 
 runs:
@@ -88,11 +83,14 @@ runs:
       id: run_stoney
       shell: bash
       env:
-        STONEY_BASE_URL: ${{ inputs.base_url }}
-        STONEY_TOKEN: ${{ inputs.token }}
+        # HTTP base URL — set STONEY_BASE_URL as a repo/org secret and pass via api_url input
+        STONEY_BASE_URL: ${{ inputs.api_url }}
+        # Premium dashboard token — set STONEY_TOKEN as a repo/org secret and pass via stoney_token input
+        STONEY_TOKEN: ${{ inputs.stoney_token }}
+        # SQL connection string — set DB_URL as a repo/org secret and pass via db_url input
+        STONEY_DB_URL: ${{ inputs.db_url }}
         STONEY_TIMEOUT_MS: ${{ inputs.timeout_ms }}
         STONEY_RETRIES: ${{ inputs.retries }}
-        STONEY_DB_URL: ${{ inputs.db_url }}
         STONEY_REQUIRE_WORK_ITEM: ${{ inputs.require_work_item }}
         STONEY_WORK_ITEM_PATTERN: ${{ inputs.work_item_pattern }}
       run: |
@@ -177,9 +175,7 @@ runs:
             logText = fs.readFileSync(logPath, "utf8").trim() || logText;
           }
 
-          const snippet = logText.length > 12000
-            ? logText.slice(-12000)
-            : logText;
+          const snippet = logText.length > 12000 ? logText.slice(-12000) : logText;
 
           await core.summary
             .addHeading("🪨 Stoney Report — ❌ FAILED BEFORE REPORT")
