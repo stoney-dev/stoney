@@ -13,13 +13,14 @@ export default defineConfig([
     minify: false,
     sourcemap: true,
     dts: false,
-    shims: true, // ← fixes import.meta.url → __dirname in CJS output
+    shims: true,
     noExternal: [
       "commander",
       "fast-glob",
       "js-yaml",
       "zod",
-      "zod-to-json-schema"
+      "zod-to-json-schema",
+      "dotenv",       // ← bundle dotenv into the CJS binary
     ],
     external: ["pg", "pg-native"],
     outExtension() {

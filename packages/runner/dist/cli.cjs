@@ -40,6 +40,452 @@ var init_cjs_shims = __esm({
   }
 });
 
+// node_modules/dotenv/package.json
+var require_package = __commonJS({
+  "node_modules/dotenv/package.json"(exports2, module2) {
+    module2.exports = {
+      name: "dotenv",
+      version: "17.3.1",
+      description: "Loads environment variables from .env file",
+      main: "lib/main.js",
+      types: "lib/main.d.ts",
+      exports: {
+        ".": {
+          types: "./lib/main.d.ts",
+          require: "./lib/main.js",
+          default: "./lib/main.js"
+        },
+        "./config": "./config.js",
+        "./config.js": "./config.js",
+        "./lib/env-options": "./lib/env-options.js",
+        "./lib/env-options.js": "./lib/env-options.js",
+        "./lib/cli-options": "./lib/cli-options.js",
+        "./lib/cli-options.js": "./lib/cli-options.js",
+        "./package.json": "./package.json"
+      },
+      scripts: {
+        "dts-check": "tsc --project tests/types/tsconfig.json",
+        lint: "standard",
+        pretest: "npm run lint && npm run dts-check",
+        test: "tap run tests/**/*.js --allow-empty-coverage --disable-coverage --timeout=60000",
+        "test:coverage": "tap run tests/**/*.js --show-full-coverage --timeout=60000 --coverage-report=text --coverage-report=lcov",
+        prerelease: "npm test",
+        release: "standard-version"
+      },
+      repository: {
+        type: "git",
+        url: "git://github.com/motdotla/dotenv.git"
+      },
+      homepage: "https://github.com/motdotla/dotenv#readme",
+      funding: "https://dotenvx.com",
+      keywords: [
+        "dotenv",
+        "env",
+        ".env",
+        "environment",
+        "variables",
+        "config",
+        "settings"
+      ],
+      readmeFilename: "README.md",
+      license: "BSD-2-Clause",
+      devDependencies: {
+        "@types/node": "^18.11.3",
+        decache: "^4.6.2",
+        sinon: "^14.0.1",
+        standard: "^17.0.0",
+        "standard-version": "^9.5.0",
+        tap: "^19.2.0",
+        typescript: "^4.8.4"
+      },
+      engines: {
+        node: ">=12"
+      },
+      browser: {
+        fs: false
+      }
+    };
+  }
+});
+
+// node_modules/dotenv/lib/main.js
+var require_main = __commonJS({
+  "node_modules/dotenv/lib/main.js"(exports2, module2) {
+    "use strict";
+    init_cjs_shims();
+    var fs4 = require("fs");
+    var path5 = require("path");
+    var os = require("os");
+    var crypto3 = require("crypto");
+    var packageJson = require_package();
+    var version = packageJson.version;
+    var TIPS = [
+      "\u{1F510} encrypt with Dotenvx: https://dotenvx.com",
+      "\u{1F510} prevent committing .env to code: https://dotenvx.com/precommit",
+      "\u{1F510} prevent building .env in docker: https://dotenvx.com/prebuild",
+      "\u{1F916} agentic secret storage: https://dotenvx.com/as2",
+      "\u26A1\uFE0F secrets for agents: https://dotenvx.com/as2",
+      "\u{1F6E1}\uFE0F auth for agents: https://vestauth.com",
+      "\u{1F6E0}\uFE0F  run anywhere with `dotenvx run -- yourcommand`",
+      "\u2699\uFE0F  specify custom .env file path with { path: '/custom/path/.env' }",
+      "\u2699\uFE0F  enable debug logging with { debug: true }",
+      "\u2699\uFE0F  override existing env vars with { override: true }",
+      "\u2699\uFE0F  suppress all logs with { quiet: true }",
+      "\u2699\uFE0F  write to custom object with { processEnv: myObject }",
+      "\u2699\uFE0F  load multiple .env files with { path: ['.env.local', '.env'] }"
+    ];
+    function _getRandomTip() {
+      return TIPS[Math.floor(Math.random() * TIPS.length)];
+    }
+    function parseBoolean(value) {
+      if (typeof value === "string") {
+        return !["false", "0", "no", "off", ""].includes(value.toLowerCase());
+      }
+      return Boolean(value);
+    }
+    function supportsAnsi() {
+      return process.stdout.isTTY;
+    }
+    function dim(text) {
+      return supportsAnsi() ? `\x1B[2m${text}\x1B[0m` : text;
+    }
+    var LINE = /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg;
+    function parse(src) {
+      const obj = {};
+      let lines = src.toString();
+      lines = lines.replace(/\r\n?/mg, "\n");
+      let match;
+      while ((match = LINE.exec(lines)) != null) {
+        const key = match[1];
+        let value = match[2] || "";
+        value = value.trim();
+        const maybeQuote = value[0];
+        value = value.replace(/^(['"`])([\s\S]*)\1$/mg, "$2");
+        if (maybeQuote === '"') {
+          value = value.replace(/\\n/g, "\n");
+          value = value.replace(/\\r/g, "\r");
+        }
+        obj[key] = value;
+      }
+      return obj;
+    }
+    function _parseVault(options) {
+      options = options || {};
+      const vaultPath = _vaultPath(options);
+      options.path = vaultPath;
+      const result = DotenvModule.configDotenv(options);
+      if (!result.parsed) {
+        const err = new Error(`MISSING_DATA: Cannot parse ${vaultPath} for an unknown reason`);
+        err.code = "MISSING_DATA";
+        throw err;
+      }
+      const keys = _dotenvKey(options).split(",");
+      const length = keys.length;
+      let decrypted;
+      for (let i = 0; i < length; i++) {
+        try {
+          const key = keys[i].trim();
+          const attrs = _instructions(result, key);
+          decrypted = DotenvModule.decrypt(attrs.ciphertext, attrs.key);
+          break;
+        } catch (error) {
+          if (i + 1 >= length) {
+            throw error;
+          }
+        }
+      }
+      return DotenvModule.parse(decrypted);
+    }
+    function _warn(message) {
+      console.error(`[dotenv@${version}][WARN] ${message}`);
+    }
+    function _debug(message) {
+      console.log(`[dotenv@${version}][DEBUG] ${message}`);
+    }
+    function _log(message) {
+      console.log(`[dotenv@${version}] ${message}`);
+    }
+    function _dotenvKey(options) {
+      if (options && options.DOTENV_KEY && options.DOTENV_KEY.length > 0) {
+        return options.DOTENV_KEY;
+      }
+      if (process.env.DOTENV_KEY && process.env.DOTENV_KEY.length > 0) {
+        return process.env.DOTENV_KEY;
+      }
+      return "";
+    }
+    function _instructions(result, dotenvKey) {
+      let uri;
+      try {
+        uri = new URL(dotenvKey);
+      } catch (error) {
+        if (error.code === "ERR_INVALID_URL") {
+          const err = new Error("INVALID_DOTENV_KEY: Wrong format. Must be in valid uri format like dotenv://:key_1234@dotenvx.com/vault/.env.vault?environment=development");
+          err.code = "INVALID_DOTENV_KEY";
+          throw err;
+        }
+        throw error;
+      }
+      const key = uri.password;
+      if (!key) {
+        const err = new Error("INVALID_DOTENV_KEY: Missing key part");
+        err.code = "INVALID_DOTENV_KEY";
+        throw err;
+      }
+      const environment = uri.searchParams.get("environment");
+      if (!environment) {
+        const err = new Error("INVALID_DOTENV_KEY: Missing environment part");
+        err.code = "INVALID_DOTENV_KEY";
+        throw err;
+      }
+      const environmentKey = `DOTENV_VAULT_${environment.toUpperCase()}`;
+      const ciphertext = result.parsed[environmentKey];
+      if (!ciphertext) {
+        const err = new Error(`NOT_FOUND_DOTENV_ENVIRONMENT: Cannot locate environment ${environmentKey} in your .env.vault file.`);
+        err.code = "NOT_FOUND_DOTENV_ENVIRONMENT";
+        throw err;
+      }
+      return { ciphertext, key };
+    }
+    function _vaultPath(options) {
+      let possibleVaultPath = null;
+      if (options && options.path && options.path.length > 0) {
+        if (Array.isArray(options.path)) {
+          for (const filepath of options.path) {
+            if (fs4.existsSync(filepath)) {
+              possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
+            }
+          }
+        } else {
+          possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
+        }
+      } else {
+        possibleVaultPath = path5.resolve(process.cwd(), ".env.vault");
+      }
+      if (fs4.existsSync(possibleVaultPath)) {
+        return possibleVaultPath;
+      }
+      return null;
+    }
+    function _resolveHome(envPath) {
+      return envPath[0] === "~" ? path5.join(os.homedir(), envPath.slice(1)) : envPath;
+    }
+    function _configVault(options) {
+      const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
+      const quiet = parseBoolean(process.env.DOTENV_CONFIG_QUIET || options && options.quiet);
+      if (debug || !quiet) {
+        _log("Loading env from encrypted .env.vault");
+      }
+      const parsed = DotenvModule._parseVault(options);
+      let processEnv = process.env;
+      if (options && options.processEnv != null) {
+        processEnv = options.processEnv;
+      }
+      DotenvModule.populate(processEnv, parsed, options);
+      return { parsed };
+    }
+    function configDotenv(options) {
+      const dotenvPath = path5.resolve(process.cwd(), ".env");
+      let encoding = "utf8";
+      let processEnv = process.env;
+      if (options && options.processEnv != null) {
+        processEnv = options.processEnv;
+      }
+      let debug = parseBoolean(processEnv.DOTENV_CONFIG_DEBUG || options && options.debug);
+      let quiet = parseBoolean(processEnv.DOTENV_CONFIG_QUIET || options && options.quiet);
+      if (options && options.encoding) {
+        encoding = options.encoding;
+      } else {
+        if (debug) {
+          _debug("No encoding is specified. UTF-8 is used by default");
+        }
+      }
+      let optionPaths = [dotenvPath];
+      if (options && options.path) {
+        if (!Array.isArray(options.path)) {
+          optionPaths = [_resolveHome(options.path)];
+        } else {
+          optionPaths = [];
+          for (const filepath of options.path) {
+            optionPaths.push(_resolveHome(filepath));
+          }
+        }
+      }
+      let lastError;
+      const parsedAll = {};
+      for (const path6 of optionPaths) {
+        try {
+          const parsed = DotenvModule.parse(fs4.readFileSync(path6, { encoding }));
+          DotenvModule.populate(parsedAll, parsed, options);
+        } catch (e) {
+          if (debug) {
+            _debug(`Failed to load ${path6} ${e.message}`);
+          }
+          lastError = e;
+        }
+      }
+      const populated = DotenvModule.populate(processEnv, parsedAll, options);
+      debug = parseBoolean(processEnv.DOTENV_CONFIG_DEBUG || debug);
+      quiet = parseBoolean(processEnv.DOTENV_CONFIG_QUIET || quiet);
+      if (debug || !quiet) {
+        const keysCount = Object.keys(populated).length;
+        const shortPaths = [];
+        for (const filePath of optionPaths) {
+          try {
+            const relative = path5.relative(process.cwd(), filePath);
+            shortPaths.push(relative);
+          } catch (e) {
+            if (debug) {
+              _debug(`Failed to load ${filePath} ${e.message}`);
+            }
+            lastError = e;
+          }
+        }
+        _log(`injecting env (${keysCount}) from ${shortPaths.join(",")} ${dim(`-- tip: ${_getRandomTip()}`)}`);
+      }
+      if (lastError) {
+        return { parsed: parsedAll, error: lastError };
+      } else {
+        return { parsed: parsedAll };
+      }
+    }
+    function config(options) {
+      if (_dotenvKey(options).length === 0) {
+        return DotenvModule.configDotenv(options);
+      }
+      const vaultPath = _vaultPath(options);
+      if (!vaultPath) {
+        _warn(`You set DOTENV_KEY but you are missing a .env.vault file at ${vaultPath}. Did you forget to build it?`);
+        return DotenvModule.configDotenv(options);
+      }
+      return DotenvModule._configVault(options);
+    }
+    function decrypt(encrypted, keyStr) {
+      const key = Buffer.from(keyStr.slice(-64), "hex");
+      let ciphertext = Buffer.from(encrypted, "base64");
+      const nonce = ciphertext.subarray(0, 12);
+      const authTag = ciphertext.subarray(-16);
+      ciphertext = ciphertext.subarray(12, -16);
+      try {
+        const aesgcm = crypto3.createDecipheriv("aes-256-gcm", key, nonce);
+        aesgcm.setAuthTag(authTag);
+        return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
+      } catch (error) {
+        const isRange = error instanceof RangeError;
+        const invalidKeyLength = error.message === "Invalid key length";
+        const decryptionFailed = error.message === "Unsupported state or unable to authenticate data";
+        if (isRange || invalidKeyLength) {
+          const err = new Error("INVALID_DOTENV_KEY: It must be 64 characters long (or more)");
+          err.code = "INVALID_DOTENV_KEY";
+          throw err;
+        } else if (decryptionFailed) {
+          const err = new Error("DECRYPTION_FAILED: Please check your DOTENV_KEY");
+          err.code = "DECRYPTION_FAILED";
+          throw err;
+        } else {
+          throw error;
+        }
+      }
+    }
+    function populate(processEnv, parsed, options = {}) {
+      const debug = Boolean(options && options.debug);
+      const override = Boolean(options && options.override);
+      const populated = {};
+      if (typeof parsed !== "object") {
+        const err = new Error("OBJECT_REQUIRED: Please check the processEnv argument being passed to populate");
+        err.code = "OBJECT_REQUIRED";
+        throw err;
+      }
+      for (const key of Object.keys(parsed)) {
+        if (Object.prototype.hasOwnProperty.call(processEnv, key)) {
+          if (override === true) {
+            processEnv[key] = parsed[key];
+            populated[key] = parsed[key];
+          }
+          if (debug) {
+            if (override === true) {
+              _debug(`"${key}" is already defined and WAS overwritten`);
+            } else {
+              _debug(`"${key}" is already defined and was NOT overwritten`);
+            }
+          }
+        } else {
+          processEnv[key] = parsed[key];
+          populated[key] = parsed[key];
+        }
+      }
+      return populated;
+    }
+    var DotenvModule = {
+      configDotenv,
+      _configVault,
+      _parseVault,
+      config,
+      decrypt,
+      parse,
+      populate
+    };
+    module2.exports.configDotenv = DotenvModule.configDotenv;
+    module2.exports._configVault = DotenvModule._configVault;
+    module2.exports._parseVault = DotenvModule._parseVault;
+    module2.exports.config = DotenvModule.config;
+    module2.exports.decrypt = DotenvModule.decrypt;
+    module2.exports.parse = DotenvModule.parse;
+    module2.exports.populate = DotenvModule.populate;
+    module2.exports = DotenvModule;
+  }
+});
+
+// node_modules/dotenv/lib/env-options.js
+var require_env_options = __commonJS({
+  "node_modules/dotenv/lib/env-options.js"(exports2, module2) {
+    "use strict";
+    init_cjs_shims();
+    var options = {};
+    if (process.env.DOTENV_CONFIG_ENCODING != null) {
+      options.encoding = process.env.DOTENV_CONFIG_ENCODING;
+    }
+    if (process.env.DOTENV_CONFIG_PATH != null) {
+      options.path = process.env.DOTENV_CONFIG_PATH;
+    }
+    if (process.env.DOTENV_CONFIG_QUIET != null) {
+      options.quiet = process.env.DOTENV_CONFIG_QUIET;
+    }
+    if (process.env.DOTENV_CONFIG_DEBUG != null) {
+      options.debug = process.env.DOTENV_CONFIG_DEBUG;
+    }
+    if (process.env.DOTENV_CONFIG_OVERRIDE != null) {
+      options.override = process.env.DOTENV_CONFIG_OVERRIDE;
+    }
+    if (process.env.DOTENV_CONFIG_DOTENV_KEY != null) {
+      options.DOTENV_KEY = process.env.DOTENV_CONFIG_DOTENV_KEY;
+    }
+    module2.exports = options;
+  }
+});
+
+// node_modules/dotenv/lib/cli-options.js
+var require_cli_options = __commonJS({
+  "node_modules/dotenv/lib/cli-options.js"(exports2, module2) {
+    "use strict";
+    init_cjs_shims();
+    var re = /^dotenv_config_(encoding|path|quiet|debug|override|DOTENV_KEY)=(.+)$/;
+    module2.exports = function optionMatcher(args) {
+      const options = args.reduce(function(acc, cur) {
+        const matches = cur.match(re);
+        if (matches) {
+          acc[matches[1]] = matches[2];
+        }
+        return acc;
+      }, {});
+      if (!("quiet" in options)) {
+        options.quiet = "true";
+      }
+      return options;
+    };
+  }
+});
+
 // ../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/array.js
 var require_array = __commonJS({
   "../../node_modules/.pnpm/fast-glob@3.3.3/node_modules/fast-glob/out/utils/array.js"(exports2) {
@@ -2443,11 +2889,11 @@ var require_parse2 = __commonJS({
             state.backtrack = true;
           }
           if (brace.comma !== true && brace.dots !== true) {
-            const out = state.output.slice(0, brace.outputIndex);
+            const out2 = state.output.slice(0, brace.outputIndex);
             const toks = state.tokens.slice(brace.tokensIndex);
             brace.value = brace.output = "\\{";
             value = output = "\\}";
-            state.output = out;
+            state.output = out2;
             for (const t of toks) {
               state.output += t.output || t.value;
             }
@@ -9071,6 +9517,20 @@ var require_commander = __commonJS({
 
 // src/cli.ts
 init_cjs_shims();
+
+// node_modules/dotenv/config.js
+init_cjs_shims();
+(function() {
+  require_main().config(
+    Object.assign(
+      {},
+      require_env_options(),
+      require_cli_options()(process.argv)
+    )
+  );
+})();
+
+// src/cli.ts
 var import_node_fs3 = __toESM(require("fs"), 1);
 var import_node_path4 = __toESM(require("path"), 1);
 var import_node_crypto2 = __toESM(require("crypto"), 1);
@@ -9634,14 +10094,14 @@ var bool = new type("tag:yaml.org,2002:bool", {
   },
   defaultStyle: "lowercase"
 });
-function isHexCode(c) {
-  return 48 <= c && c <= 57 || 65 <= c && c <= 70 || 97 <= c && c <= 102;
+function isHexCode(c2) {
+  return 48 <= c2 && c2 <= 57 || 65 <= c2 && c2 <= 70 || 97 <= c2 && c2 <= 102;
 }
-function isOctCode(c) {
-  return 48 <= c && c <= 55;
+function isOctCode(c2) {
+  return 48 <= c2 && c2 <= 55;
 }
-function isDecCode(c) {
-  return 48 <= c && c <= 57;
+function isDecCode(c2) {
+  return 48 <= c2 && c2 <= 57;
 }
 function resolveYamlInteger(data) {
   if (data === null) return false;
@@ -10071,57 +10531,57 @@ var PATTERN_TAG_URI = /^(?:!|[^,\[\]\{\}])(?:%[0-9a-f]{2}|[0-9a-z\-#;\/\?:@&=\+\
 function _class(obj) {
   return Object.prototype.toString.call(obj);
 }
-function is_EOL(c) {
-  return c === 10 || c === 13;
+function is_EOL(c2) {
+  return c2 === 10 || c2 === 13;
 }
-function is_WHITE_SPACE(c) {
-  return c === 9 || c === 32;
+function is_WHITE_SPACE(c2) {
+  return c2 === 9 || c2 === 32;
 }
-function is_WS_OR_EOL(c) {
-  return c === 9 || c === 32 || c === 10 || c === 13;
+function is_WS_OR_EOL(c2) {
+  return c2 === 9 || c2 === 32 || c2 === 10 || c2 === 13;
 }
-function is_FLOW_INDICATOR(c) {
-  return c === 44 || c === 91 || c === 93 || c === 123 || c === 125;
+function is_FLOW_INDICATOR(c2) {
+  return c2 === 44 || c2 === 91 || c2 === 93 || c2 === 123 || c2 === 125;
 }
-function fromHexCode(c) {
+function fromHexCode(c2) {
   var lc;
-  if (48 <= c && c <= 57) {
-    return c - 48;
+  if (48 <= c2 && c2 <= 57) {
+    return c2 - 48;
   }
-  lc = c | 32;
+  lc = c2 | 32;
   if (97 <= lc && lc <= 102) {
     return lc - 97 + 10;
   }
   return -1;
 }
-function escapedHexLen(c) {
-  if (c === 120) {
+function escapedHexLen(c2) {
+  if (c2 === 120) {
     return 2;
   }
-  if (c === 117) {
+  if (c2 === 117) {
     return 4;
   }
-  if (c === 85) {
+  if (c2 === 85) {
     return 8;
   }
   return 0;
 }
-function fromDecimalCode(c) {
-  if (48 <= c && c <= 57) {
-    return c - 48;
+function fromDecimalCode(c2) {
+  if (48 <= c2 && c2 <= 57) {
+    return c2 - 48;
   }
   return -1;
 }
-function simpleEscapeSequence(c) {
-  return c === 48 ? "\0" : c === 97 ? "\x07" : c === 98 ? "\b" : c === 116 ? "	" : c === 9 ? "	" : c === 110 ? "\n" : c === 118 ? "\v" : c === 102 ? "\f" : c === 114 ? "\r" : c === 101 ? "\x1B" : c === 32 ? " " : c === 34 ? '"' : c === 47 ? "/" : c === 92 ? "\\" : c === 78 ? "\x85" : c === 95 ? "\xA0" : c === 76 ? "\u2028" : c === 80 ? "\u2029" : "";
+function simpleEscapeSequence(c2) {
+  return c2 === 48 ? "\0" : c2 === 97 ? "\x07" : c2 === 98 ? "\b" : c2 === 116 ? "	" : c2 === 9 ? "	" : c2 === 110 ? "\n" : c2 === 118 ? "\v" : c2 === 102 ? "\f" : c2 === 114 ? "\r" : c2 === 101 ? "\x1B" : c2 === 32 ? " " : c2 === 34 ? '"' : c2 === 47 ? "/" : c2 === 92 ? "\\" : c2 === 78 ? "\x85" : c2 === 95 ? "\xA0" : c2 === 76 ? "\u2028" : c2 === 80 ? "\u2029" : "";
 }
-function charFromCodepoint(c) {
-  if (c <= 65535) {
-    return String.fromCharCode(c);
+function charFromCodepoint(c2) {
+  if (c2 <= 65535) {
+    return String.fromCharCode(c2);
   }
   return String.fromCharCode(
-    (c - 65536 >> 10) + 55296,
-    (c - 65536 & 1023) + 56320
+    (c2 - 65536 >> 10) + 55296,
+    (c2 - 65536 & 1023) + 56320
   );
 }
 function setProperty(object, key, value) {
@@ -11363,31 +11823,31 @@ function testImplicitResolving(state, str2) {
   }
   return false;
 }
-function isWhitespace(c) {
-  return c === CHAR_SPACE || c === CHAR_TAB;
+function isWhitespace(c2) {
+  return c2 === CHAR_SPACE || c2 === CHAR_TAB;
 }
-function isPrintable(c) {
-  return 32 <= c && c <= 126 || 161 <= c && c <= 55295 && c !== 8232 && c !== 8233 || 57344 <= c && c <= 65533 && c !== CHAR_BOM || 65536 <= c && c <= 1114111;
+function isPrintable(c2) {
+  return 32 <= c2 && c2 <= 126 || 161 <= c2 && c2 <= 55295 && c2 !== 8232 && c2 !== 8233 || 57344 <= c2 && c2 <= 65533 && c2 !== CHAR_BOM || 65536 <= c2 && c2 <= 1114111;
 }
-function isNsCharOrWhitespace(c) {
-  return isPrintable(c) && c !== CHAR_BOM && c !== CHAR_CARRIAGE_RETURN && c !== CHAR_LINE_FEED;
+function isNsCharOrWhitespace(c2) {
+  return isPrintable(c2) && c2 !== CHAR_BOM && c2 !== CHAR_CARRIAGE_RETURN && c2 !== CHAR_LINE_FEED;
 }
-function isPlainSafe(c, prev, inblock) {
-  var cIsNsCharOrWhitespace = isNsCharOrWhitespace(c);
-  var cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c);
+function isPlainSafe(c2, prev, inblock) {
+  var cIsNsCharOrWhitespace = isNsCharOrWhitespace(c2);
+  var cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c2);
   return (
     // ns-plain-safe
     (inblock ? (
       // c = flow-in
       cIsNsCharOrWhitespace
-    ) : cIsNsCharOrWhitespace && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET) && c !== CHAR_SHARP && !(prev === CHAR_COLON && !cIsNsChar) || isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c === CHAR_SHARP || prev === CHAR_COLON && cIsNsChar
+    ) : cIsNsCharOrWhitespace && c2 !== CHAR_COMMA && c2 !== CHAR_LEFT_SQUARE_BRACKET && c2 !== CHAR_RIGHT_SQUARE_BRACKET && c2 !== CHAR_LEFT_CURLY_BRACKET && c2 !== CHAR_RIGHT_CURLY_BRACKET) && c2 !== CHAR_SHARP && !(prev === CHAR_COLON && !cIsNsChar) || isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c2 === CHAR_SHARP || prev === CHAR_COLON && cIsNsChar
   );
 }
-function isPlainSafeFirst(c) {
-  return isPrintable(c) && c !== CHAR_BOM && !isWhitespace(c) && c !== CHAR_MINUS && c !== CHAR_QUESTION && c !== CHAR_COLON && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET && c !== CHAR_SHARP && c !== CHAR_AMPERSAND && c !== CHAR_ASTERISK && c !== CHAR_EXCLAMATION && c !== CHAR_VERTICAL_LINE && c !== CHAR_EQUALS && c !== CHAR_GREATER_THAN && c !== CHAR_SINGLE_QUOTE && c !== CHAR_DOUBLE_QUOTE && c !== CHAR_PERCENT && c !== CHAR_COMMERCIAL_AT && c !== CHAR_GRAVE_ACCENT;
+function isPlainSafeFirst(c2) {
+  return isPrintable(c2) && c2 !== CHAR_BOM && !isWhitespace(c2) && c2 !== CHAR_MINUS && c2 !== CHAR_QUESTION && c2 !== CHAR_COLON && c2 !== CHAR_COMMA && c2 !== CHAR_LEFT_SQUARE_BRACKET && c2 !== CHAR_RIGHT_SQUARE_BRACKET && c2 !== CHAR_LEFT_CURLY_BRACKET && c2 !== CHAR_RIGHT_CURLY_BRACKET && c2 !== CHAR_SHARP && c2 !== CHAR_AMPERSAND && c2 !== CHAR_ASTERISK && c2 !== CHAR_EXCLAMATION && c2 !== CHAR_VERTICAL_LINE && c2 !== CHAR_EQUALS && c2 !== CHAR_GREATER_THAN && c2 !== CHAR_SINGLE_QUOTE && c2 !== CHAR_DOUBLE_QUOTE && c2 !== CHAR_PERCENT && c2 !== CHAR_COMMERCIAL_AT && c2 !== CHAR_GRAVE_ACCENT;
 }
-function isPlainSafeLast(c) {
-  return !isWhitespace(c) && c !== CHAR_COLON;
+function isPlainSafeLast(c2) {
+  return !isWhitespace(c2) && c2 !== CHAR_COLON;
 }
 function codePointAt(string, pos) {
   var first = string.charCodeAt(pos), second;
@@ -11896,9 +12356,9 @@ function interpolate(input) {
   }
   if (Array.isArray(input)) return input.map(interpolate);
   if (isObj2(input)) {
-    const out = {};
-    for (const [k, v] of Object.entries(input)) out[k] = interpolate(v);
-    return out;
+    const out2 = {};
+    for (const [k, v] of Object.entries(input)) out2[k] = interpolate(v);
+    return out2;
   }
   return input;
 }
@@ -12916,10 +13376,10 @@ function isValidJWT(jwt, alg) {
   if (!jwtRegex.test(jwt))
     return false;
   try {
-    const [header] = jwt.split(".");
-    if (!header)
+    const [header2] = jwt.split(".");
+    if (!header2)
       return false;
-    const base64 = header.replace(/-/g, "+").replace(/_/g, "/").padEnd(header.length + (4 - header.length % 4) % 4, "=");
+    const base64 = header2.replace(/-/g, "+").replace(/_/g, "/").padEnd(header2.length + (4 - header2.length % 4) % 4, "=");
     const decoded = JSON.parse(atob(base64));
     if (typeof decoded !== "object" || decoded === null)
       return false;
@@ -16171,11 +16631,11 @@ function resolveFakePlaceholders(value, seedKey) {
     }
     if (Array.isArray(v)) return v.map((x, i) => walk(x, `${path5}[${i}]`));
     if (v && typeof v === "object") {
-      const out = {};
+      const out2 = {};
       for (const [k, val] of Object.entries(v)) {
-        out[k] = walk(val, path5 ? `${path5}.${k}` : k);
+        out2[k] = walk(val, path5 ? `${path5}.${k}` : k);
       }
-      return out;
+      return out2;
     }
     return v;
   };
@@ -16498,15 +16958,80 @@ var program2 = new Command();
 var TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
 var INGEST_ENDPOINT = "https://stoneydev.com/api/ingest";
 var DEFAULT_SUITE = "contracts/*.yml";
+var isTTY = Boolean(process.stdout.isTTY) && process.env.NO_COLOR === void 0;
+var c = {
+  bold: (s) => isTTY ? `\x1B[1m${s}\x1B[0m` : s,
+  dim: (s) => isTTY ? `\x1B[2m${s}\x1B[0m` : s,
+  green: (s) => isTTY ? `\x1B[32m${s}\x1B[0m` : s,
+  red: (s) => isTTY ? `\x1B[31m${s}\x1B[0m` : s,
+  yellow: (s) => isTTY ? `\x1B[33m${s}\x1B[0m` : s,
+  cyan: (s) => isTTY ? `\x1B[36m${s}\x1B[0m` : s,
+  blue: (s) => isTTY ? `\x1B[34m${s}\x1B[0m` : s,
+  gray: (s) => isTTY ? `\x1B[90m${s}\x1B[0m` : s
+};
+var PASS = "\u2713";
+var FAIL = "\u2717";
+var WARN = "\u25B2";
+var DOT = "\xB7";
+function log(msg = "") {
+  console.log(msg);
+}
+function out(msg) {
+  console.error(msg);
+}
+function blank() {
+  console.log("");
+}
+function header(title) {
+  blank();
+  if (isTTY) {
+    const width = Math.min(60, process.stdout.columns ?? 60);
+    log(c.bold(c.cyan(title)));
+    log(c.dim("\u2500".repeat(width)));
+  } else {
+    log(`=== ${title} ===`);
+  }
+  blank();
+}
+function passLine(msg) {
+  log(`  ${c.green(PASS)}  ${msg}`);
+}
+function failLine(msg) {
+  out(`  ${c.red(FAIL)}  ${msg}`);
+}
+function warnLine(msg) {
+  log(`  ${c.yellow(WARN)}  ${msg}`);
+}
+function infoLine(msg) {
+  log(`  ${c.gray(DOT)}  ${c.dim(msg)}`);
+}
+function noteLine(msg) {
+  log(`       ${c.dim(msg)}`);
+}
+function indentErr(msg) {
+  out(`       ${msg}`);
+}
+function fatal(msg, code = 2) {
+  blank();
+  out(`  ${c.red(FAIL)}  ${c.bold("Error:")} ${msg}`);
+  blank();
+  process.exit(code);
+}
 process.on("unhandledRejection", (reason) => {
-  const message = reason instanceof Error ? reason.stack || reason.message : String(reason);
-  console.error(`\u274C Unhandled rejection in Stoney CLI:
-${message}`);
+  const msg = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  out(`
+  ${c.red(FAIL)}  ${c.bold("Unhandled error")}
+
+${c.dim(msg)}
+`);
   process.exit(2);
 });
-process.on("uncaughtException", (err) => {
-  console.error(`\u274C Uncaught exception in Stoney CLI:
-${err.stack || err.message}`);
+process.on("uncaughtException", (e) => {
+  out(`
+  ${c.red(FAIL)}  ${c.bold("Uncaught exception")}
+
+${c.dim(e.stack || e.message)}
+`);
   process.exit(2);
 });
 function readVersion() {
@@ -16526,10 +17051,6 @@ function envFlag(name) {
 function didUserPassFlag(argv, flag) {
   return argv.includes(flag);
 }
-function fatal(msg, code = 2) {
-  console.error(msg);
-  process.exit(code);
-}
 function safeRegex2(pat) {
   try {
     return new RegExp(pat);
@@ -16538,8 +17059,10 @@ function safeRegex2(pat) {
   }
 }
 function telemetryDebugEnabled() {
-  const v = String(process.env.STONEY_DEBUG_TELEMETRY || "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes" || v === "on";
+  return envFlag("STONEY_DEBUG_TELEMETRY");
+}
+function formatMs(ms) {
+  return ms < 1e3 ? `${ms}ms` : `${(ms / 1e3).toFixed(2)}s`;
 }
 function getInstallationId() {
   const repo = String(process.env.GITHUB_REPOSITORY || "").trim();
@@ -16551,8 +17074,8 @@ function getInstallationId() {
     const file = import_node_path4.default.join(dir, "telemetry-id");
     if (!import_node_fs3.default.existsSync(dir)) import_node_fs3.default.mkdirSync(dir, { recursive: true });
     if (import_node_fs3.default.existsSync(file)) {
-      const existing = import_node_fs3.default.readFileSync(file, "utf8").trim();
-      if (existing) return `local:${existing}`;
+      const id2 = import_node_fs3.default.readFileSync(file, "utf8").trim();
+      if (id2) return `local:${id2}`;
     }
     const id = import_node_crypto2.default.randomUUID();
     import_node_fs3.default.writeFileSync(file, id, "utf8");
@@ -16563,7 +17086,7 @@ function getInstallationId() {
 }
 async function sendTelemetry(report) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5e3);
+  const tid = setTimeout(() => controller.abort(), 5e3);
   const version = readVersion();
   const installation_id = getInstallationId();
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
@@ -16585,7 +17108,7 @@ async function sendTelemetry(report) {
     }
   };
   try {
-    const response = await fetch(TELEMETRY_ENDPOINT, {
+    const res = await fetch(TELEMETRY_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -16596,55 +17119,50 @@ async function sendTelemetry(report) {
       body: JSON.stringify(payload),
       signal: controller.signal
     });
-    if (!response.ok && telemetryDebugEnabled()) {
-      console.warn(`\u26A0\uFE0F  Stoney telemetry failed: HTTP ${response.status}`);
-    }
-  } catch (err) {
-    if (telemetryDebugEnabled()) {
-      console.warn("\u26A0\uFE0F  Stoney telemetry error:", err?.message || String(err));
-    }
+    if (!res.ok && telemetryDebugEnabled()) warnLine(`Telemetry: HTTP ${res.status}`);
+  } catch (e) {
+    if (telemetryDebugEnabled()) warnLine(`Telemetry error: ${e?.message}`);
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(tid);
   }
 }
 async function pushToDashboard(report, token) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 1e4);
+  const tid = setTimeout(() => controller.abort(), 1e4);
   const version = readVersion();
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
   const run_id = String(process.env.GITHUB_RUN_ID || "");
-  const payload = {
-    repo_id,
-    git_sha: String(process.env.GITHUB_SHA || ""),
-    git_ref: String(process.env.GITHUB_REF || ""),
-    run_id,
-    run_url: run_id ? `https://github.com/${repo_id}/actions/runs/${run_id}` : "",
-    actor: String(process.env.GITHUB_ACTOR || ""),
-    event_name: String(process.env.GITHUB_EVENT_NAME || ""),
-    report
-  };
   try {
-    const response = await fetch(INGEST_ENDPOINT, {
+    const res = await fetch(INGEST_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "User-Agent": `stoney/${version}`,
         "Authorization": `Bearer ${token}`
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        repo_id,
+        git_sha: String(process.env.GITHUB_SHA || ""),
+        git_ref: String(process.env.GITHUB_REF || ""),
+        run_id,
+        run_url: run_id ? `https://github.com/${repo_id}/actions/runs/${run_id}` : "",
+        actor: String(process.env.GITHUB_ACTOR || ""),
+        event_name: String(process.env.GITHUB_EVENT_NAME || ""),
+        report
+      }),
       signal: controller.signal
     });
-    if (response.ok) {
-      console.log(`\u{1F4CA} Report pushed to Stoney dashboard.`);
-    } else if (response.status === 401) {
-      console.warn(`\u26A0\uFE0F  Dashboard push failed: invalid STONEY_TOKEN \u2014 check your repo secret.`);
+    if (res.ok) {
+      passLine(`${c.bold("Dashboard")} synced  ${c.dim("\u2192 stoneydev.com")}`);
+    } else if (res.status === 401) {
+      warnLine(`Dashboard sync failed: invalid ${c.bold("STONEY_TOKEN")} \u2014 check your .env or repo secret`);
     } else {
-      console.warn(`\u26A0\uFE0F  Dashboard push failed: HTTP ${response.status}`);
+      warnLine(`Dashboard sync failed: HTTP ${res.status}`);
     }
-  } catch (err) {
-    console.warn(`\u26A0\uFE0F  Dashboard push error: ${err?.message || String(err)}`);
+  } catch (e) {
+    warnLine(`Dashboard sync error: ${e?.message || String(e)}`);
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(tid);
   }
 }
 async function runOneStep(baseUrl, st) {
@@ -16654,30 +17172,26 @@ async function runOneStep(baseUrl, st) {
         return {
           ok: false,
           kind: "http",
-          title: `http ${st.http.method} ${st.http.path}`,
-          notes: ["Missing base_url. Pass --base-url or set STONEY_BASE_URL."]
+          title: `${st.http.method} ${st.http.path}`,
+          notes: ["No base URL \u2014 set STONEY_BASE_URL in .env or pass --base-url"]
         };
       }
       return await runHttpStep(baseUrl, st.http, st.expect);
     }
     if ("exec" in st) return await runExecStep(st.exec, st.expect);
     if ("sql" in st) return await runSqlStep(st.sql, st.expect);
-    return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type."] };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack ?? "" : "";
-    console.error(`\u274C Step threw unexpectedly: ${message}
-${stack}`);
-    return { ok: false, kind: "exec", title: "step error", notes: [`Step threw: ${message}`] };
+    return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type"] };
+  } catch (e) {
+    return { ok: false, kind: "exec", title: "step error", notes: [`Threw: ${e?.message || String(e)}`] };
   }
 }
-function pickString(value) {
-  return typeof value === "string" ? value : void 0;
+function pickString(v) {
+  return typeof v === "string" ? v : void 0;
 }
-function pickStringArray(value) {
-  if (!Array.isArray(value)) return void 0;
-  const filtered = value.filter((x) => typeof x === "string");
-  return filtered.length ? filtered : void 0;
+function pickStringArray(v) {
+  if (!Array.isArray(v)) return void 0;
+  const r = v.filter((x) => typeof x === "string");
+  return r.length ? r : void 0;
 }
 function normalizeWorkItem(workItem, fallbackSays, fallbackLinks) {
   if (typeof workItem === "string") {
@@ -16697,103 +17211,121 @@ function normalizeWorkItem(workItem, fallbackSays, fallbackLinks) {
   }
   return void 0;
 }
-program2.name("stoney").description("Stoney \u2014 Requirements-as-Code CI runner.").version(readVersion()).exitOverride((err) => {
-  if (err.code !== "commander.helpDisplayed" && err.code !== "commander.version") {
-    console.error(`\u274C Stoney CLI error: ${err.message}`);
-  }
-  process.exit(err.exitCode ?? 1);
-});
-program2.command("hello").description("Smoke test \u2014 confirms the CLI is installed correctly").action(() => console.log("\u{1FAA8} Stoney is alive."));
-program2.command("parse").argument("<file>", "Contract file (.yml/.yaml or .json)").option("--pretty", "Pretty-print JSON").description("Parse and print a contract file as JSON").action((file, opts) => {
-  const suite = loadSuite(file);
-  console.log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
-});
-program2.command("validate").description("Parse and validate contracts without running them.").option("--suite <glob>", "Contract glob", DEFAULT_SUITE).action(async (opts) => {
-  const suitePaths = await (0, import_fast_glob.default)(opts.suite, { onlyFiles: true, unique: true });
-  if (!suitePaths.length) fatal(`No contract files matched: ${opts.suite}`);
-  console.log(`\u{1F50D} Validating ${suitePaths.length} file(s)...
+program2.name("stoney").description("Stoney \u2014 Requirements-as-Code CI runner").version(readVersion(), "-v, --version").exitOverride((e) => {
+  if (e.code !== "commander.helpDisplayed" && e.code !== "commander.version") {
+    out(`
+  ${c.red(FAIL)}  ${e.message}
 `);
+  }
+  process.exit(e.exitCode ?? 1);
+});
+program2.command("hello").description("Smoke test \u2014 confirms the CLI is installed correctly").action(() => {
+  blank();
+  log(`  \u{1FAA8}  ${c.bold("Stoney")} ${c.dim(`v${readVersion()}`)}  ${c.green("is alive")}`);
+  blank();
+});
+program2.command("parse").argument("<file>", "Contract file (.yml / .yaml / .json)").option("--pretty", "Pretty-print JSON output").description("Parse and print a contract file as JSON").action((file, opts) => {
+  const suite = loadSuite(file);
+  log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
+});
+program2.command("validate").description("Parse and schema-validate contracts without running them").option("--suite <glob>", "Contract glob", DEFAULT_SUITE).action(async (opts) => {
+  header("Validating contracts");
+  const suitePaths = await (0, import_fast_glob.default)(opts.suite, { onlyFiles: true, unique: true });
+  if (!suitePaths.length) fatal(`No contract files matched: ${c.bold(opts.suite)}`);
+  infoLine(`glob   ${opts.suite}`);
+  infoLine(`files  ${suitePaths.length}`);
+  blank();
   let hasErrors = false;
   for (const p of suitePaths) {
     try {
       const suite = loadSuite(p);
-      const checkCount = suite.contracts.reduce((n, c) => n + c.checks.length, 0);
-      console.log(`  \u2705 ${p}  (${suite.contracts.length} contract(s), ${checkCount} check(s))`);
+      const cc = suite.contracts.length;
+      const chk = suite.contracts.reduce((n, x) => n + x.checks.length, 0);
+      passLine(`${c.bold(p)}  ${c.dim(`${cc} contract${cc === 1 ? "" : "s"}, ${chk} check${chk === 1 ? "" : "s"}`)}`);
     } catch (e) {
-      console.error(`  \u274C ${p}
-     ${e?.message || String(e)}`);
+      failLine(c.bold(p));
+      indentErr(c.yellow(e?.message || String(e)));
       hasErrors = true;
     }
   }
-  console.log();
+  blank();
   if (hasErrors) {
-    console.error(`\u274C Validation failed \u2014 fix the errors above before running.`);
+    out(`  ${c.red(FAIL)}  ${c.bold("Validation failed")} \u2014 fix the errors above before running`);
+    blank();
     process.exit(1);
-  } else {
-    console.log(`\u2705 All contracts valid.`);
   }
+  log(`  ${c.green(PASS)}  ${c.bold("All contracts valid")}`);
+  blank();
 });
-program2.command("run").description("Run contracts and fail CI on drift.").option("--suite <glob>", "Contract file path or glob", DEFAULT_SUITE).option("--base-url <url>", "Base URL for HTTP steps (or set STONEY_BASE_URL)").option("--report <path>", "JSON report output path", "stoney-report.json").option("--only-contract <n>", "Run only one contract by name").option("--only-check <id>", "Run only one check by id").option("--fail-fast", "Stop on first failure", false).option("--require-work-item", "Require work_item on every check", false).option("--work-item-pattern <regex>", "Regex that work_item.key must match").allowUnknownOption(false).action(async (opts) => {
+program2.command("run").description("Run contracts and fail CI on drift").option("--suite <glob>", "Contract file path or glob", DEFAULT_SUITE).option("--base-url <url>", "Base URL for HTTP steps (or STONEY_BASE_URL)").option("--report <path>", "JSON report output path", "stoney-report.json").option("--only-contract <name>", "Run only one contract by name").option("--only-check <id>", "Run only one check by id").option("--fail-fast", "Stop on first failure", false).option("--require-work-item", "Require work_item on every check", false).option("--work-item-pattern <regex>", "Regex that work_item.key must match").allowUnknownOption(false).action(async (opts) => {
   try {
     await runCommand(opts);
-  } catch (err) {
-    const message = err instanceof Error ? err.stack || err.message : String(err);
-    console.error(`\u274C Stoney run failed with unhandled error:
-${message}`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.stack || e.message : String(e);
+    out(`
+  ${c.red(FAIL)}  ${c.bold("Unexpected error")}
+
+${c.dim(msg)}
+`);
     process.exit(2);
   }
 });
 async function runCommand(opts) {
+  const runStart = Date.now();
   const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
   const argv = process.argv.slice(2).filter((a) => a.trim() !== "");
-  const userSpecifiedRequire = didUserPassFlag(argv, "--require-work-item");
-  const requireWorkItem = userSpecifiedRequire ? Boolean(opts.requireWorkItem) : envFlag("STONEY_REQUIRE_WORK_ITEM");
+  const requireWorkItem = didUserPassFlag(argv, "--require-work-item") ? Boolean(opts.requireWorkItem) : envFlag("STONEY_REQUIRE_WORK_ITEM");
   const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
   const pattern = patternRaw ? safeRegex2(patternRaw) : null;
-  if (patternRaw && !pattern) fatal(`Invalid --work-item-pattern regex: ${patternRaw}`);
-  console.log(`\u{1F50D} Resolving suite glob: ${opts.suite} (cwd: ${process.cwd()})`);
+  if (patternRaw && !pattern) fatal(`Invalid --work-item-pattern regex: ${c.bold(patternRaw)}`);
+  header("Running contracts");
   const suitePaths = await (0, import_fast_glob.default)(opts.suite, { onlyFiles: true, unique: true });
-  if (!suitePaths.length) fatal(`No contract files matched: ${opts.suite}`);
-  console.log(`\u{1F4CB} Found ${suitePaths.length} contract file(s): ${suitePaths.join(", ")}`);
+  if (!suitePaths.length) fatal(`No contract files matched: ${c.bold(opts.suite)}`);
+  infoLine(`glob   ${opts.suite}`);
+  infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
+  if (baseUrl) infoLine(`url    ${baseUrl}`);
+  blank();
   const suites = [];
   for (const p of suitePaths) {
     try {
       suites.push(loadSuite(p));
     } catch (e) {
-      fatal(`Contract parse error in "${p}": ${e?.message || String(e)}`);
+      fatal(`Parse error in ${c.bold(p)}: ${e?.message || String(e)}`);
     }
   }
   let failed = 0;
   let total = 0;
-  const results = [];
   let shouldStop = false;
+  const results = [];
   for (const suite of suites) {
     if (shouldStop) break;
     for (const contract of suite.contracts) {
       if (shouldStop) break;
       if (opts.onlyContract && contract.name !== opts.onlyContract) continue;
+      log(`  ${c.bold(c.blue(contract.name))}${contract.description ? c.dim(`  ${contract.description}`) : ""}`);
       for (const check of contract.checks) {
         if (shouldStop) break;
         if (opts.onlyCheck && check.id !== opts.onlyCheck) continue;
         total++;
+        const checkStart = Date.now();
         let checkOk = true;
         const notes = [];
         const stepResults = [];
-        const normalizedWorkItem = normalizeWorkItem(check.work_item, check.says, check.links);
-        const workItemKey = normalizedWorkItem?.key || "";
+        const wi = normalizeWorkItem(check.work_item, check.says, check.links);
+        const wiKey = wi?.key || "";
         if (requireWorkItem) {
-          if (!workItemKey) {
+          if (!wiKey) {
             checkOk = false;
-            notes.push("Missing work_item. Expected a work_item.key value.");
-          } else if (pattern && !pattern.test(workItemKey)) {
+            notes.push("Missing work_item \u2014 expected a work_item.key value");
+          } else if (pattern && !pattern.test(wiKey)) {
             checkOk = false;
-            notes.push(`work_item.key "${workItemKey}" does not match required pattern "${patternRaw}".`);
+            notes.push(`work_item.key "${wiKey}" does not match pattern "${patternRaw}"`);
           }
         }
         if (checkOk) {
           if (!Array.isArray(check.steps) || check.steps.length === 0) {
             checkOk = false;
-            notes.push("Check has no steps.");
+            notes.push("Check has no steps");
           } else {
             for (const st of check.steps) {
               const r = await runOneStep(baseUrl, st);
@@ -16805,42 +17337,70 @@ async function runCommand(opts) {
             }
           }
         }
+        const dur = c.dim(` ${formatMs(Date.now() - checkStart)}`);
+        const tag = wiKey ? `  ${c.dim(`[${wiKey}]`)}` : "";
+        if (checkOk) {
+          log(`    ${c.green(PASS)}  ${check.id}${tag}${dur}`);
+          if (check.says) noteLine(check.says);
+        } else {
+          out(`    ${c.red(FAIL)}  ${c.bold(check.id)}${tag}${dur}`);
+          if (check.says) indentErr(c.dim(check.says));
+          for (const n of notes) indentErr(c.yellow(n));
+          for (const sr of stepResults.filter((s) => !s.ok)) {
+            indentErr(`${c.dim("step")}  ${sr.title}`);
+            for (const n of sr.notes || []) indentErr(`  ${c.red("\u21B3")} ${n}`);
+          }
+        }
         results.push({
           feature: suite.feature,
           contract: contract.name,
           id: check.id,
           ok: checkOk,
-          work_item: normalizedWorkItem,
+          work_item: wi,
           notes,
           steps: stepResults
         });
         if (!checkOk) failed++;
         if (opts.failFast && !checkOk) shouldStop = true;
       }
+      blank();
     }
   }
+  const elapsed = Date.now() - runStart;
+  const passed = Math.max(0, total - failed);
+  const parts = [
+    failed === 0 ? c.green(`${passed} passed`) : c.red(`${failed} failed`),
+    failed > 0 && passed > 0 ? c.dim(`${passed} passed`) : "",
+    c.dim(`${total} total`),
+    c.dim(formatMs(elapsed))
+  ].filter(Boolean).join(c.dim("  \xB7  "));
+  if (failed === 0) {
+    log(`  ${c.green(PASS)}  ${c.bold("All checks passed")}  ${c.dim("\xB7")}  ${parts}`);
+  } else {
+    out(`  ${c.red(FAIL)}  ${c.bold(`${failed} check${failed === 1 ? "" : "s"} failed`)}  ${c.dim("\xB7")}  ${parts}`);
+  }
+  blank();
   const report = {
     report_version: 1,
     base_url: baseUrl,
     total,
     failed,
-    passed: Math.max(0, total - failed),
+    passed,
     ok: failed === 0,
+    duration_ms: elapsed,
     results
   };
-  const out = import_node_path4.default.resolve(process.cwd(), opts.report);
-  console.log(`\u{1F4DD} Writing report to: ${out}`);
-  import_node_fs3.default.mkdirSync(import_node_path4.default.dirname(out), { recursive: true });
-  import_node_fs3.default.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
-  console.log(`\u2705 Report written (${report.total} checks, ${report.failed} failed)`);
+  const out2 = import_node_path4.default.resolve(process.cwd(), opts.report);
+  import_node_fs3.default.mkdirSync(import_node_path4.default.dirname(out2), { recursive: true });
+  import_node_fs3.default.writeFileSync(out2, JSON.stringify(report, null, 2), "utf8");
+  infoLine(`report  ${import_node_path4.default.relative(process.cwd(), out2)}`);
+  blank();
   console.log("--- STONEY_REPORT_START ---");
   console.log(JSON.stringify(report));
   console.log("--- STONEY_REPORT_END ---");
   await sendTelemetry(report);
   const stoneyToken = String(process.env.STONEY_TOKEN || "").trim();
-  if (stoneyToken) {
-    await pushToDashboard(report, stoneyToken);
-  }
+  if (stoneyToken) await pushToDashboard(report, stoneyToken);
   process.exit(failed === 0 ? 0 : 1);
 }
 program2.command("init").description("Scaffold a starter contract in contracts/").action(() => {
@@ -16848,10 +17408,13 @@ program2.command("init").description("Scaffold a starter contract in contracts/"
   const filePath = import_node_path4.default.join(dir, "example.yml");
   if (!import_node_fs3.default.existsSync(dir)) import_node_fs3.default.mkdirSync(dir, { recursive: true });
   if (import_node_fs3.default.existsSync(filePath)) {
-    console.log(`\u26A0\uFE0F  ${filePath} already exists \u2014 skipping. Delete it to regenerate.`);
+    blank();
+    warnLine(`${c.bold(filePath)} already exists \u2014 skipping`);
+    noteLine("Delete it and re-run init to regenerate");
+    blank();
     return;
   }
-  const example = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
+  const template = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
 version: 1
 feature: "Example Feature"
 description: "Starter contract \u2014 edit this to match your own rules."
@@ -16883,20 +17446,24 @@ contracts:
             expect:
               status: 401
 `;
-  import_node_fs3.default.writeFileSync(filePath, example, "utf8");
-  console.log(`\u2705 Created ${filePath}`);
-  console.log(`
-Next steps:`);
-  console.log(`  1. Edit contracts/example.yml to match your API`);
-  console.log(`  2. Run: stoney validate`);
-  console.log(`  3. Run: stoney run --base-url http://localhost:3000`);
+  import_node_fs3.default.writeFileSync(filePath, template, "utf8");
+  blank();
+  log(`  ${c.green(PASS)}  ${c.bold("Created")} ${c.cyan(filePath)}`);
+  blank();
+  log(`  ${c.bold("Next steps")}`);
+  blank();
+  log(`    ${c.cyan("1")}  Edit ${c.bold(filePath)} to match your API`);
+  log(`    ${c.cyan("2")}  Add ${c.bold("STONEY_BASE_URL=http://localhost:3000")} to ${c.bold(".env")}`);
+  log(`    ${c.cyan("3")}  ${c.bold("stoney validate")}`);
+  log(`    ${c.cyan("4")}  ${c.bold("stoney run")}`);
+  blank();
 });
 async function main() {
   await program2.parseAsync(process.argv);
 }
-main().catch((err) => {
-  const message = err instanceof Error ? err.stack || err.message : String(err);
-  fatal(message);
+main().catch((e) => {
+  const msg = e instanceof Error ? e.stack || e.message : String(e);
+  fatal(msg);
 });
 /*! Bundled license information:
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import "dotenv/config";
+
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -15,23 +17,77 @@ import type { TelemetryEnvelope } from "./telemetry.js";
 
 const program = new Command();
 const TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
-const INGEST_ENDPOINT = "https://stoneydev.com/api/ingest";
-const DEFAULT_SUITE = "contracts/*.yml";
+const INGEST_ENDPOINT    = "https://stoneydev.com/api/ingest";
+const DEFAULT_SUITE      = "contracts/*.yml";
 
-// ─── Process-level error guards ────────────────────────────────────────────
+// ─── ANSI colour helpers ──────────────────────────────────────────────────
+// Colours are suppressed when stdout is not a TTY or NO_COLOR is set,
+// following the https://no-color.org convention.
+
+const isTTY = Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
+
+const c = {
+  bold:    (s: string) => isTTY ? `\x1b[1m${s}\x1b[0m`  : s,
+  dim:     (s: string) => isTTY ? `\x1b[2m${s}\x1b[0m`  : s,
+  green:   (s: string) => isTTY ? `\x1b[32m${s}\x1b[0m` : s,
+  red:     (s: string) => isTTY ? `\x1b[31m${s}\x1b[0m` : s,
+  yellow:  (s: string) => isTTY ? `\x1b[33m${s}\x1b[0m` : s,
+  cyan:    (s: string) => isTTY ? `\x1b[36m${s}\x1b[0m` : s,
+  blue:    (s: string) => isTTY ? `\x1b[34m${s}\x1b[0m` : s,
+  gray:    (s: string) => isTTY ? `\x1b[90m${s}\x1b[0m` : s,
+};
+
+// ─── Output primitives ────────────────────────────────────────────────────
+
+const PASS = "✓";
+const FAIL = "✗";
+const WARN = "▲";
+const DOT  = "·";
+
+function log(msg = "")  { console.log(msg); }
+function out(msg: string) { console.error(msg); }  // stderr for errors/warns
+function blank()        { console.log(""); }
+
+function header(title: string) {
+  blank();
+  if (isTTY) {
+    const width = Math.min(60, process.stdout.columns ?? 60);
+    log(c.bold(c.cyan(title)));
+    log(c.dim("─".repeat(width)));
+  } else {
+    log(`=== ${title} ===`);
+  }
+  blank();
+}
+
+function passLine(msg: string)  { log(`  ${c.green(PASS)}  ${msg}`); }
+function failLine(msg: string)  { out(`  ${c.red(FAIL)}  ${msg}`); }
+function warnLine(msg: string)  { log(`  ${c.yellow(WARN)}  ${msg}`); }
+function infoLine(msg: string)  { log(`  ${c.gray(DOT)}  ${c.dim(msg)}`); }
+function noteLine(msg: string)  { log(`       ${c.dim(msg)}`); }
+function indentErr(msg: string) { out(`       ${msg}`); }
+
+function fatal(msg: string, code = 2): never {
+  blank();
+  out(`  ${c.red(FAIL)}  ${c.bold("Error:")} ${msg}`);
+  blank();
+  process.exit(code);
+}
+
+// ─── Process-level guards ─────────────────────────────────────────────────
 
 process.on("unhandledRejection", (reason: unknown) => {
-  const message = reason instanceof Error ? reason.stack || reason.message : String(reason);
-  console.error(`❌ Unhandled rejection in Stoney CLI:\n${message}`);
+  const msg = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  out(`\n  ${c.red(FAIL)}  ${c.bold("Unhandled error")}\n\n${c.dim(msg)}\n`);
   process.exit(2);
 });
 
-process.on("uncaughtException", (err: Error) => {
-  console.error(`❌ Uncaught exception in Stoney CLI:\n${err.stack || err.message}`);
+process.on("uncaughtException", (e: Error) => {
+  out(`\n  ${c.red(FAIL)}  ${c.bold("Uncaught exception")}\n\n${c.dim(e.stack || e.message)}\n`);
   process.exit(2);
 });
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+// ─── Misc helpers ─────────────────────────────────────────────────────────
 
 function readVersion(): string {
   try {
@@ -53,42 +109,31 @@ function didUserPassFlag(argv: string[], flag: string): boolean {
   return argv.includes(flag);
 }
 
-function fatal(msg: string, code = 2): never {
-  console.error(msg);
-  process.exit(code);
-}
-
 function safeRegex(pat: string): RegExp | null {
-  try {
-    return new RegExp(pat);
-  } catch {
-    return null;
-  }
+  try { return new RegExp(pat); } catch { return null; }
 }
 
 function telemetryDebugEnabled(): boolean {
-  const v = String(process.env.STONEY_DEBUG_TELEMETRY || "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes" || v === "on";
+  return envFlag("STONEY_DEBUG_TELEMETRY");
+}
+
+function formatMs(ms: number): string {
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
 }
 
 function getInstallationId(): string {
   const repo = String(process.env.GITHUB_REPOSITORY || "").trim();
   if (repo) return `gh:${repo.toLowerCase()}`;
-
   try {
     const home = process.env.HOME || process.env.USERPROFILE;
     if (!home) return `local:${crypto.randomUUID()}`;
-
-    const dir = path.join(home, ".stoney");
+    const dir  = path.join(home, ".stoney");
     const file = path.join(dir, "telemetry-id");
-
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
     if (fs.existsSync(file)) {
-      const existing = fs.readFileSync(file, "utf8").trim();
-      if (existing) return `local:${existing}`;
+      const id = fs.readFileSync(file, "utf8").trim();
+      if (id) return `local:${id}`;
     }
-
     const id = crypto.randomUUID();
     fs.writeFileSync(file, id, "utf8");
     return `local:${id}`;
@@ -97,12 +142,11 @@ function getInstallationId(): string {
   }
 }
 
-// ─── Telemetry (anonymous, always fires, never blocks CI) ─────────────────
+// ─── Telemetry ────────────────────────────────────────────────────────────
 
 async function sendTelemetry(report: unknown): Promise<void> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
-
+  const tid = setTimeout(() => controller.abort(), 5000);
   const version = readVersion();
   const installation_id = getInstallationId();
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
@@ -112,21 +156,17 @@ async function sendTelemetry(report: unknown): Promise<void> {
     repo_id,
     status: (report as { ok?: boolean })?.ok ? "pass" : "fail",
     metadata: {
-      kind: "stoney_run",
-      version,
-      installation_id,
-      environment,
-      repo_id,
-      run_id: String(process.env.GITHUB_RUN_ID || ""),
-      workflow: String(process.env.GITHUB_WORKFLOW || ""),
-      actor: String(process.env.GITHUB_ACTOR || ""),
+      kind: "stoney_run", version, installation_id, environment, repo_id,
+      run_id:     String(process.env.GITHUB_RUN_ID    || ""),
+      workflow:   String(process.env.GITHUB_WORKFLOW   || ""),
+      actor:      String(process.env.GITHUB_ACTOR      || ""),
       event_name: String(process.env.GITHUB_EVENT_NAME || ""),
       report,
     },
   };
 
   try {
-    const response = await fetch(TELEMETRY_ENDPOINT, {
+    const res = await fetch(TELEMETRY_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -137,70 +177,55 @@ async function sendTelemetry(report: unknown): Promise<void> {
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
-
-    if (!response.ok && telemetryDebugEnabled()) {
-      console.warn(`⚠️  Stoney telemetry failed: HTTP ${response.status}`);
-    }
-  } catch (err: any) {
-    if (telemetryDebugEnabled()) {
-      console.warn("⚠️  Stoney telemetry error:", err?.message || String(err));
-    }
+    if (!res.ok && telemetryDebugEnabled()) warnLine(`Telemetry: HTTP ${res.status}`);
+  } catch (e: any) {
+    if (telemetryDebugEnabled()) warnLine(`Telemetry error: ${e?.message}`);
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(tid);
   }
 }
 
-// ─── Dashboard push (premium — only fires when STONEY_TOKEN is present) ───
-//
-// Free users:    no STONEY_TOKEN secret → skipped silently
-// Premium users: STONEY_TOKEN set as a repo secret → report appears in dashboard
-// This never throws or fails CI — a push failure is always a warning only.
+// ─── Dashboard push ───────────────────────────────────────────────────────
 
 async function pushToDashboard(report: unknown, token: string): Promise<void> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
-
+  const tid = setTimeout(() => controller.abort(), 10000);
   const version = readVersion();
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
-  const run_id = String(process.env.GITHUB_RUN_ID || "");
-
-  const payload = {
-    repo_id,
-    git_sha: String(process.env.GITHUB_SHA || ""),
-    git_ref: String(process.env.GITHUB_REF || ""),
-    run_id,
-    run_url: run_id
-      ? `https://github.com/${repo_id}/actions/runs/${run_id}`
-      : "",
-    actor: String(process.env.GITHUB_ACTOR || ""),
-    event_name: String(process.env.GITHUB_EVENT_NAME || ""),
-    report,
-  };
+  const run_id  = String(process.env.GITHUB_RUN_ID || "");
 
   try {
-    const response = await fetch(INGEST_ENDPOINT, {
+    const res = await fetch(INGEST_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "User-Agent": `stoney/${version}`,
         "Authorization": `Bearer ${token}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        repo_id,
+        git_sha:    String(process.env.GITHUB_SHA        || ""),
+        git_ref:    String(process.env.GITHUB_REF        || ""),
+        run_id,
+        run_url:    run_id ? `https://github.com/${repo_id}/actions/runs/${run_id}` : "",
+        actor:      String(process.env.GITHUB_ACTOR      || ""),
+        event_name: String(process.env.GITHUB_EVENT_NAME || ""),
+        report,
+      }),
       signal: controller.signal,
     });
 
-    if (response.ok) {
-      console.log(`📊 Report pushed to Stoney dashboard.`);
-    } else if (response.status === 401) {
-      console.warn(`⚠️  Dashboard push failed: invalid STONEY_TOKEN — check your repo secret.`);
+    if (res.ok) {
+      passLine(`${c.bold("Dashboard")} synced  ${c.dim("→ stoneydev.com")}`);
+    } else if (res.status === 401) {
+      warnLine(`Dashboard sync failed: invalid ${c.bold("STONEY_TOKEN")} — check your .env or repo secret`);
     } else {
-      console.warn(`⚠️  Dashboard push failed: HTTP ${response.status}`);
+      warnLine(`Dashboard sync failed: HTTP ${res.status}`);
     }
-  } catch (err: any) {
-    // Never fail CI because the push failed
-    console.warn(`⚠️  Dashboard push error: ${err?.message || String(err)}`);
+  } catch (e: any) {
+    warnLine(`Dashboard sync error: ${e?.message || String(e)}`);
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(tid);
   }
 }
 
@@ -211,60 +236,53 @@ async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
     if ("http" in st) {
       if (!baseUrl) {
         return {
-          ok: false,
-          kind: "http",
-          title: `http ${st.http.method} ${st.http.path}`,
-          notes: ["Missing base_url. Pass --base-url or set STONEY_BASE_URL."],
+          ok: false, kind: "http",
+          title: `${st.http.method} ${st.http.path}`,
+          notes: ["No base URL — set STONEY_BASE_URL in .env or pass --base-url"],
         };
       }
       return await runHttpStep(baseUrl, st.http, st.expect);
     }
     if ("exec" in st) return await runExecStep(st.exec, st.expect);
-    if ("sql" in st) return await runSqlStep(st.sql, st.expect);
-
-    return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type."] };
-  } catch (err: any) {
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? (err.stack ?? "") : "";
-    console.error(`❌ Step threw unexpectedly: ${message}\n${stack}`);
-    return { ok: false, kind: "exec", title: "step error", notes: [`Step threw: ${message}`] };
+    if ("sql"  in st) return await runSqlStep(st.sql, st.expect);
+    return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type"] };
+  } catch (e: any) {
+    return { ok: false, kind: "exec", title: "step error", notes: [`Threw: ${e?.message || String(e)}`] };
   }
 }
 
-// ─── Work item normalizer ─────────────────────────────────────────────────
+// ─── Work item helpers ────────────────────────────────────────────────────
 
-function pickString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
+function pickString(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
 }
 
-function pickStringArray(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const filtered = value.filter((x: unknown): x is string => typeof x === "string");
-  return filtered.length ? filtered : undefined;
+function pickStringArray(v: unknown): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const r = v.filter((x): x is string => typeof x === "string");
+  return r.length ? r : undefined;
 }
 
 function normalizeWorkItem(
   workItem: unknown,
   fallbackSays?: unknown,
-  fallbackLinks?: unknown
+  fallbackLinks?: unknown,
 ): WorkItemRef | undefined {
   if (typeof workItem === "string") {
     const key = workItem.trim();
     if (!key) return undefined;
     return { key, says: pickString(fallbackSays), links: pickStringArray(fallbackLinks) };
   }
-
   if (workItem && typeof workItem === "object") {
-    const wi = workItem as { key?: unknown; says?: unknown; links?: unknown };
+    const wi  = workItem as { key?: unknown; says?: unknown; links?: unknown };
     const key = typeof wi.key === "string" ? wi.key.trim() : "";
     if (!key) return undefined;
     return {
       key,
-      says: pickString(wi.says) ?? pickString(fallbackSays),
+      says:  pickString(wi.says)       ?? pickString(fallbackSays),
       links: pickStringArray(wi.links) ?? pickStringArray(fallbackLinks),
     };
   }
-
   return undefined;
 }
 
@@ -272,235 +290,283 @@ function normalizeWorkItem(
 
 program
   .name("stoney")
-  .description("Stoney — Requirements-as-Code CI runner.")
-  .version(readVersion())
-  .exitOverride((err: CommanderError) => {
-    if (err.code !== "commander.helpDisplayed" && err.code !== "commander.version") {
-      console.error(`❌ Stoney CLI error: ${err.message}`);
+  .description("Stoney — Requirements-as-Code CI runner")
+  .version(readVersion(), "-v, --version")
+  .exitOverride((e: CommanderError) => {
+    if (e.code !== "commander.helpDisplayed" && e.code !== "commander.version") {
+      out(`\n  ${c.red(FAIL)}  ${e.message}\n`);
     }
-    process.exit(err.exitCode ?? 1);
+    process.exit(e.exitCode ?? 1);
   });
+
+// hello ────────────────────────────────────────────────────────────────────
 
 program
   .command("hello")
   .description("Smoke test — confirms the CLI is installed correctly")
-  .action(() => console.log("🪨 Stoney is alive."));
+  .action(() => {
+    blank();
+    log(`  🪨  ${c.bold("Stoney")} ${c.dim(`v${readVersion()}`)}  ${c.green("is alive")}`);
+    blank();
+  });
 
-// ─── parse ────────────────────────────────────────────────────────────────
+// parse ────────────────────────────────────────────────────────────────────
 
 program
   .command("parse")
-  .argument("<file>", "Contract file (.yml/.yaml or .json)")
-  .option("--pretty", "Pretty-print JSON")
+  .argument("<file>", "Contract file (.yml / .yaml / .json)")
+  .option("--pretty", "Pretty-print JSON output")
   .description("Parse and print a contract file as JSON")
   .action((file: string, opts: any) => {
     const suite = loadSuite(file);
-    console.log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
+    log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
   });
 
-// ─── validate ─────────────────────────────────────────────────────────────
+// validate ─────────────────────────────────────────────────────────────────
 
 program
   .command("validate")
-  .description("Parse and validate contracts without running them.")
+  .description("Parse and schema-validate contracts without running them")
   .option("--suite <glob>", "Contract glob", DEFAULT_SUITE)
   .action(async (opts: any) => {
+    header("Validating contracts");
+
     const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
+    if (!suitePaths.length) fatal(`No contract files matched: ${c.bold(opts.suite)}`);
 
-    if (!suitePaths.length) fatal(`No contract files matched: ${opts.suite}`);
-
-    console.log(`🔍 Validating ${suitePaths.length} file(s)...\n`);
+    infoLine(`glob   ${opts.suite}`);
+    infoLine(`files  ${suitePaths.length}`);
+    blank();
 
     let hasErrors = false;
 
     for (const p of suitePaths) {
       try {
-        const suite = loadSuite(p);
-        const checkCount = suite.contracts.reduce((n, c) => n + c.checks.length, 0);
-        console.log(`  ✅ ${p}  (${suite.contracts.length} contract(s), ${checkCount} check(s))`);
+        const suite  = loadSuite(p);
+        const cc     = suite.contracts.length;
+        const chk    = suite.contracts.reduce((n, x) => n + x.checks.length, 0);
+        passLine(`${c.bold(p)}  ${c.dim(`${cc} contract${cc === 1 ? "" : "s"}, ${chk} check${chk === 1 ? "" : "s"}`)}`);
       } catch (e: any) {
-        console.error(`  ❌ ${p}\n     ${e?.message || String(e)}`);
+        failLine(c.bold(p));
+        indentErr(c.yellow(e?.message || String(e)));
         hasErrors = true;
       }
     }
 
-    console.log();
+    blank();
 
     if (hasErrors) {
-      console.error(`❌ Validation failed — fix the errors above before running.`);
+      out(`  ${c.red(FAIL)}  ${c.bold("Validation failed")} — fix the errors above before running`);
+      blank();
       process.exit(1);
-    } else {
-      console.log(`✅ All contracts valid.`);
     }
+
+    log(`  ${c.green(PASS)}  ${c.bold("All contracts valid")}`);
+    blank();
   });
 
-// ─── run ──────────────────────────────────────────────────────────────────
+// run ──────────────────────────────────────────────────────────────────────
 
 program
   .command("run")
-  .description("Run contracts and fail CI on drift.")
-  .option("--suite <glob>", "Contract file path or glob", DEFAULT_SUITE)
-  .option("--base-url <url>", "Base URL for HTTP steps (or set STONEY_BASE_URL)")
-  .option("--report <path>", "JSON report output path", "stoney-report.json")
-  .option("--only-contract <n>", "Run only one contract by name")
-  .option("--only-check <id>", "Run only one check by id")
-  .option("--fail-fast", "Stop on first failure", false)
-  .option("--require-work-item", "Require work_item on every check", false)
+  .description("Run contracts and fail CI on drift")
+  .option("--suite <glob>",              "Contract file path or glob",                DEFAULT_SUITE)
+  .option("--base-url <url>",            "Base URL for HTTP steps (or STONEY_BASE_URL)")
+  .option("--report <path>",             "JSON report output path",                   "stoney-report.json")
+  .option("--only-contract <name>",      "Run only one contract by name")
+  .option("--only-check <id>",           "Run only one check by id")
+  .option("--fail-fast",                 "Stop on first failure",                     false)
+  .option("--require-work-item",         "Require work_item on every check",          false)
   .option("--work-item-pattern <regex>", "Regex that work_item.key must match")
   .allowUnknownOption(false)
   .action(async (opts: any) => {
     try {
       await runCommand(opts);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.stack || err.message : String(err);
-      console.error(`❌ Stoney run failed with unhandled error:\n${message}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.stack || e.message : String(e);
+      out(`\n  ${c.red(FAIL)}  ${c.bold("Unexpected error")}\n\n${c.dim(msg)}\n`);
       process.exit(2);
     }
   });
 
 async function runCommand(opts: any): Promise<void> {
-  const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
-  const argv = process.argv.slice(2).filter((a) => a.trim() !== "");
+  const runStart = Date.now();
+  const baseUrl  = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
+  const argv     = process.argv.slice(2).filter((a) => a.trim() !== "");
 
-  const userSpecifiedRequire = didUserPassFlag(argv, "--require-work-item");
-  const requireWorkItem = userSpecifiedRequire
+  const requireWorkItem = didUserPassFlag(argv, "--require-work-item")
     ? Boolean(opts.requireWorkItem)
     : envFlag("STONEY_REQUIRE_WORK_ITEM");
 
   const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
-  const pattern = patternRaw ? safeRegex(patternRaw) : null;
+  const pattern    = patternRaw ? safeRegex(patternRaw) : null;
+  if (patternRaw && !pattern) fatal(`Invalid --work-item-pattern regex: ${c.bold(patternRaw)}`);
 
-  if (patternRaw && !pattern) fatal(`Invalid --work-item-pattern regex: ${patternRaw}`);
-
-  console.log(`🔍 Resolving suite glob: ${opts.suite} (cwd: ${process.cwd()})`);
+  // Resolve files
+  header("Running contracts");
 
   const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
-  if (!suitePaths.length) fatal(`No contract files matched: ${opts.suite}`);
+  if (!suitePaths.length) fatal(`No contract files matched: ${c.bold(opts.suite)}`);
 
-  console.log(`📋 Found ${suitePaths.length} contract file(s): ${suitePaths.join(", ")}`);
+  infoLine(`glob   ${opts.suite}`);
+  infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
+  if (baseUrl) infoLine(`url    ${baseUrl}`);
+  blank();
 
   const suites: SuiteFileV1[] = [];
   for (const p of suitePaths) {
     try {
       suites.push(loadSuite(p));
     } catch (e: any) {
-      fatal(`Contract parse error in "${p}": ${e?.message || String(e)}`);
+      fatal(`Parse error in ${c.bold(p)}: ${e?.message || String(e)}`);
     }
   }
 
-  let failed = 0;
-  let total = 0;
-  const results: Array<{ feature: string; contract: string } & ScenarioResult> = [];
+  // Execute
+  let failed     = 0;
+  let total      = 0;
   let shouldStop = false;
+  const results: Array<{ feature: string; contract: string } & ScenarioResult> = [];
 
   for (const suite of suites) {
     if (shouldStop) break;
+
     for (const contract of suite.contracts) {
       if (shouldStop) break;
       if (opts.onlyContract && contract.name !== opts.onlyContract) continue;
+
+      log(`  ${c.bold(c.blue(contract.name))}${contract.description ? c.dim(`  ${contract.description}`) : ""}`);
 
       for (const check of contract.checks as Check[]) {
         if (shouldStop) break;
         if (opts.onlyCheck && check.id !== opts.onlyCheck) continue;
 
         total++;
-        let checkOk = true;
-        const notes: string[] = [];
+        const checkStart  = Date.now();
+        let   checkOk     = true;
+        const notes: string[]        = [];
         const stepResults: StepResult[] = [];
-        const normalizedWorkItem = normalizeWorkItem(check.work_item, check.says, check.links);
-        const workItemKey = normalizedWorkItem?.key || "";
+        const wi      = normalizeWorkItem(check.work_item, check.says, check.links);
+        const wiKey   = wi?.key || "";
 
+        // Work item enforcement
         if (requireWorkItem) {
-          if (!workItemKey) {
+          if (!wiKey) {
             checkOk = false;
-            notes.push("Missing work_item. Expected a work_item.key value.");
-          } else if (pattern && !pattern.test(workItemKey)) {
+            notes.push("Missing work_item — expected a work_item.key value");
+          } else if (pattern && !pattern.test(wiKey)) {
             checkOk = false;
-            notes.push(`work_item.key "${workItemKey}" does not match required pattern "${patternRaw}".`);
+            notes.push(`work_item.key "${wiKey}" does not match pattern "${patternRaw}"`);
           }
         }
 
+        // Run steps
         if (checkOk) {
           if (!Array.isArray(check.steps) || check.steps.length === 0) {
             checkOk = false;
-            notes.push("Check has no steps.");
+            notes.push("Check has no steps");
           } else {
             for (const st of check.steps) {
               const r = await runOneStep(baseUrl, st);
               stepResults.push(r);
-              if (!r.ok) {
-                checkOk = false;
-                if (opts.failFast) break;
-              }
+              if (!r.ok) { checkOk = false; if (opts.failFast) break; }
             }
           }
         }
 
+        // Print result
+        const dur = c.dim(` ${formatMs(Date.now() - checkStart)}`);
+        const tag = wiKey ? `  ${c.dim(`[${wiKey}]`)}` : "";
+
+        if (checkOk) {
+          log(`    ${c.green(PASS)}  ${check.id}${tag}${dur}`);
+          if (check.says) noteLine(check.says);
+        } else {
+          out(`    ${c.red(FAIL)}  ${c.bold(check.id)}${tag}${dur}`);
+          if (check.says) indentErr(c.dim(check.says));
+          for (const n of notes) indentErr(c.yellow(n));
+          for (const sr of stepResults.filter((s) => !s.ok)) {
+            indentErr(`${c.dim("step")}  ${sr.title}`);
+            for (const n of sr.notes || []) indentErr(`  ${c.red("↳")} ${n}`);
+          }
+        }
+
         results.push({
-          feature: suite.feature,
-          contract: contract.name,
-          id: check.id,
-          ok: checkOk,
-          work_item: normalizedWorkItem,
-          notes,
-          steps: stepResults,
+          feature: suite.feature, contract: contract.name,
+          id: check.id, ok: checkOk, work_item: wi, notes, steps: stepResults,
         });
 
         if (!checkOk) failed++;
         if (opts.failFast && !checkOk) shouldStop = true;
       }
+
+      blank();
     }
   }
 
+  // Summary line
+  const elapsed = Date.now() - runStart;
+  const passed  = Math.max(0, total - failed);
+  const parts   = [
+    failed === 0 ? c.green(`${passed} passed`) : c.red(`${failed} failed`),
+    failed > 0 && passed > 0 ? c.dim(`${passed} passed`) : "",
+    c.dim(`${total} total`),
+    c.dim(formatMs(elapsed)),
+  ].filter(Boolean).join(c.dim("  ·  "));
+
+  if (failed === 0) {
+    log(`  ${c.green(PASS)}  ${c.bold("All checks passed")}  ${c.dim("·")}  ${parts}`);
+  } else {
+    out(`  ${c.red(FAIL)}  ${c.bold(`${failed} check${failed === 1 ? "" : "s"} failed`)}  ${c.dim("·")}  ${parts}`);
+  }
+
+  blank();
+
+  // Write report
   const report = {
-    report_version: 1,
-    base_url: baseUrl,
-    total,
-    failed,
-    passed: Math.max(0, total - failed),
-    ok: failed === 0,
-    results,
+    report_version: 1, base_url: baseUrl,
+    total, failed, passed, ok: failed === 0, duration_ms: elapsed, results,
   };
 
-  const out = path.resolve(process.cwd(), opts.report);
-  console.log(`📝 Writing report to: ${out}`);
-  fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
+  const out2 = path.resolve(process.cwd(), opts.report);
+  fs.mkdirSync(path.dirname(out2), { recursive: true });
+  fs.writeFileSync(out2, JSON.stringify(report, null, 2), "utf8");
+  infoLine(`report  ${path.relative(process.cwd(), out2)}`);
+  blank();
 
-  console.log(`✅ Report written (${report.total} checks, ${report.failed} failed)`);
+  // Machine-readable marker consumed by GitHub Action
   console.log("--- STONEY_REPORT_START ---");
   console.log(JSON.stringify(report));
   console.log("--- STONEY_REPORT_END ---");
 
-  // Always: anonymous telemetry so you see first users
+  // Post-run hooks — never block CI
   await sendTelemetry(report);
-
-  // Premium only: auto-push to dashboard when STONEY_TOKEN secret is present
   const stoneyToken = String(process.env.STONEY_TOKEN || "").trim();
-  if (stoneyToken) {
-    await pushToDashboard(report, stoneyToken);
-  }
+  if (stoneyToken) await pushToDashboard(report, stoneyToken);
 
   process.exit(failed === 0 ? 0 : 1);
 }
 
-// ─── init ─────────────────────────────────────────────────────────────────
+// init ─────────────────────────────────────────────────────────────────────
 
 program
   .command("init")
   .description("Scaffold a starter contract in contracts/")
   .action(() => {
-    const dir = "contracts";
+    const dir      = "contracts";
     const filePath = path.join(dir, "example.yml");
 
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     if (fs.existsSync(filePath)) {
-      console.log(`⚠️  ${filePath} already exists — skipping. Delete it to regenerate.`);
+      blank();
+      warnLine(`${c.bold(filePath)} already exists — skipping`);
+      noteLine("Delete it and re-run init to regenerate");
+      blank();
       return;
     }
 
-    const example = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
+    const template = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
 version: 1
 feature: "Example Feature"
 description: "Starter contract — edit this to match your own rules."
@@ -533,12 +599,18 @@ contracts:
               status: 401
 `;
 
-    fs.writeFileSync(filePath, example, "utf8");
-    console.log(`✅ Created ${filePath}`);
-    console.log(`\nNext steps:`);
-    console.log(`  1. Edit contracts/example.yml to match your API`);
-    console.log(`  2. Run: stoney validate`);
-    console.log(`  3. Run: stoney run --base-url http://localhost:3000`);
+    fs.writeFileSync(filePath, template, "utf8");
+
+    blank();
+    log(`  ${c.green(PASS)}  ${c.bold("Created")} ${c.cyan(filePath)}`);
+    blank();
+    log(`  ${c.bold("Next steps")}`);
+    blank();
+    log(`    ${c.cyan("1")}  Edit ${c.bold(filePath)} to match your API`);
+    log(`    ${c.cyan("2")}  Add ${c.bold("STONEY_BASE_URL=http://localhost:3000")} to ${c.bold(".env")}`);
+    log(`    ${c.cyan("3")}  ${c.bold("stoney validate")}`);
+    log(`    ${c.cyan("4")}  ${c.bold("stoney run")}`);
+    blank();
   });
 
 // ─── Entry ────────────────────────────────────────────────────────────────
@@ -547,7 +619,7 @@ async function main(): Promise<void> {
   await program.parseAsync(process.argv);
 }
 
-main().catch((err: unknown) => {
-  const message = err instanceof Error ? err.stack || err.message : String(err);
-  fatal(message);
+main().catch((e: unknown) => {
+  const msg = e instanceof Error ? e.stack || e.message : String(e);
+  fatal(msg);
 });
