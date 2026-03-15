@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.6.0
+
+### Minor Changes
+
+- fd230c2: update cli and sql files for pg driver
+
 ## 0.5.1
 
 ### Patch Changes
