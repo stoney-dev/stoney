@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.5.1
+
+### Patch Changes
+
+- c4a010a: update template cmd
+
 ## 0.5.0
 
 ### Minor Changes
