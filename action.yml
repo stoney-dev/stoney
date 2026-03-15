@@ -3,54 +3,54 @@ description: "Run Stoney contracts and enforce business rules in CI."
 
 inputs:
   api_url:
-    description: "Base URL for HTTP contract steps. Use a repo secret: ${{ secrets.API_URL }}"
+    description: "Base URL for HTTP contract steps."
     required: false
 
   suite:
-    description: "Glob pattern for contract files"
+    description: "Glob pattern for contract files."
     required: false
     default: "contracts/*.yml"
 
   stoney_token:
-    description: "Stoney dashboard token for premium users. Use a repo secret: ${{ secrets.STONEY_TOKEN }}"
+    description: "Stoney dashboard token."
     required: false
 
   db_url:
-    description: "Postgres connection string for SQL steps. Use a repo secret: ${{ secrets.DB_URL }}"
+    description: "Postgres connection string for SQL steps."
     required: false
 
   timeout_ms:
-    description: "Per-request timeout in milliseconds"
+    description: "Per-request timeout in milliseconds."
     required: false
     default: "15000"
 
   retries:
-    description: "Retry count for flaky HTTP steps"
+    description: "Retry count for flaky HTTP steps."
     required: false
     default: "2"
 
   fail_fast:
-    description: "Stop on first failure"
+    description: "Stop on first failure."
     required: false
     default: "false"
 
   report:
-    description: "Output path for the JSON report"
+    description: "Output path for the JSON report."
     required: false
     default: "stoney-report.json"
 
   artifact_name:
-    description: "Name of the uploaded artifact"
+    description: "Name of the uploaded artifact."
     required: false
     default: "stoney-report"
 
   require_work_item:
-    description: "Fail if any check is missing a work_item"
+    description: "Fail if any check is missing a work_item."
     required: false
     default: "false"
 
   work_item_pattern:
-    description: "Regex that work_item.key must match (e.g. ^KAN-\\d+$)"
+    description: "Regex that work_item.key must match, for example ^KAN-\\d+$."
     required: false
 
 runs:
@@ -79,16 +79,10 @@ runs:
         set -euo pipefail
         node "${{ github.action_path }}/packages/runner/dist/cli.cjs" hello
 
-    # ── FIX: composite actions cannot use ${{ inputs.* }} inside env: blocks.
-    # Write all input values to GITHUB_ENV here so subsequent steps can read
-    # them as ordinary environment variables without any template expressions
-    # in env: keys/values (which GitHub rejects at parse time).
     - name: Export inputs to environment
       shell: bash
       run: |
         set -euo pipefail
-        # ${{ inputs.* }} IS allowed inside a run: script — GitHub interpolates
-        # it before handing the script to the shell, so this is safe.
         {
           echo "STONEY_BASE_URL=${{ inputs.api_url }}"
           echo "STONEY_TOKEN=${{ inputs.stoney_token }}"
@@ -102,8 +96,6 @@ runs:
     - name: Run Stoney
       id: run_stoney
       shell: bash
-      # No env: block here — all STONEY_* vars are already in the environment
-      # from the "Export inputs" step above.
       run: |
         set +e
 
@@ -128,8 +120,7 @@ runs:
 
         cd "${{ github.workspace }}"
 
-        node "${CLI_PATH}" run "${STONEY_ARGS[@]}" \
-          2>&1 | tee "${LOG_PATH}"
+        node "${CLI_PATH}" run "${STONEY_ARGS[@]}" 2>&1 | tee "${LOG_PATH}"
 
         exit_code=${PIPESTATUS[0]}
 
