@@ -1,5 +1,11 @@
 # @stoney-dev/stoney-runner
 
+## 0.5.0
+
+### Minor Changes
+
+- b0812c8: changes to cli and add dotenv
+
 ## 0.4.2
 
 ### Patch Changes
