@@ -6,7 +6,6 @@ import path from "node:path";
 import crypto from "node:crypto";
 import fg from "fast-glob";
 import { Command, CommanderError } from "commander";
-
 import { runSqlStep } from "./sql.js";
 import { loadSuite } from "./contract.js";
 import type { SuiteFileV1, Step, Check } from "./schema.js";

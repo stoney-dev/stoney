@@ -40,9 +40,9 @@ var init_cjs_shims = __esm({
   }
 });
 
-// node_modules/dotenv/package.json
+// ../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/package.json
 var require_package = __commonJS({
-  "node_modules/dotenv/package.json"(exports2, module2) {
+  "../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/package.json"(exports2, module2) {
     module2.exports = {
       name: "dotenv",
       version: "17.3.1",
@@ -108,9 +108,9 @@ var require_package = __commonJS({
   }
 });
 
-// node_modules/dotenv/lib/main.js
+// ../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
-  "node_modules/dotenv/lib/main.js"(exports2, module2) {
+  "../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/lib/main.js"(exports2, module2) {
     "use strict";
     init_cjs_shims();
     var fs4 = require("fs");
@@ -436,9 +436,9 @@ var require_main = __commonJS({
   }
 });
 
-// node_modules/dotenv/lib/env-options.js
+// ../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/lib/env-options.js
 var require_env_options = __commonJS({
-  "node_modules/dotenv/lib/env-options.js"(exports2, module2) {
+  "../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/lib/env-options.js"(exports2, module2) {
     "use strict";
     init_cjs_shims();
     var options = {};
@@ -464,9 +464,9 @@ var require_env_options = __commonJS({
   }
 });
 
-// node_modules/dotenv/lib/cli-options.js
+// ../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/lib/cli-options.js
 var require_cli_options = __commonJS({
-  "node_modules/dotenv/lib/cli-options.js"(exports2, module2) {
+  "../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/lib/cli-options.js"(exports2, module2) {
     "use strict";
     init_cjs_shims();
     var re = /^dotenv_config_(encoding|path|quiet|debug|override|DOTENV_KEY)=(.+)$/;
@@ -9518,7 +9518,7 @@ var require_commander = __commonJS({
 // src/cli.ts
 init_cjs_shims();
 
-// node_modules/dotenv/config.js
+// ../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/config.js
 init_cjs_shims();
 (function() {
   require_main().config(
