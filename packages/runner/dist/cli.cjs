@@ -17027,11 +17027,15 @@ ${c.dim(msg)}
   process.exit(2);
 });
 process.on("uncaughtException", (e) => {
-  out(`
+  out(
+    `
   ${c.red(FAIL)}  ${c.bold("Uncaught exception")}
 
-${c.dim(e.stack || e.message)}
-`);
+${c.dim(
+      e.stack || e.message
+    )}
+`
+  );
   process.exit(2);
 });
 function readVersion() {
@@ -17119,7 +17123,8 @@ async function sendTelemetry(report) {
       body: JSON.stringify(payload),
       signal: controller.signal
     });
-    if (!res.ok && telemetryDebugEnabled()) warnLine(`Telemetry: HTTP ${res.status}`);
+    if (!res.ok && telemetryDebugEnabled())
+      warnLine(`Telemetry: HTTP ${res.status}`);
   } catch (e) {
     if (telemetryDebugEnabled()) warnLine(`Telemetry error: ${e?.message}`);
   } finally {
@@ -17138,7 +17143,7 @@ async function pushToDashboard(report, token) {
       headers: {
         "Content-Type": "application/json",
         "User-Agent": `stoney/${version}`,
-        "Authorization": `Bearer ${token}`
+        Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({
         repo_id,
@@ -17155,7 +17160,11 @@ async function pushToDashboard(report, token) {
     if (res.ok) {
       passLine(`${c.bold("Dashboard")} synced  ${c.dim("\u2192 stoneydev.com")}`);
     } else if (res.status === 401) {
-      warnLine(`Dashboard sync failed: invalid ${c.bold("STONEY_TOKEN")} \u2014 check your .env or repo secret`);
+      warnLine(
+        `Dashboard sync failed: invalid ${c.bold(
+          "STONEY_TOKEN"
+        )} \u2014 check your .env or repo secret`
+      );
     } else {
       warnLine(`Dashboard sync failed: HTTP ${res.status}`);
     }
@@ -17173,16 +17182,28 @@ async function runOneStep(baseUrl, st) {
           ok: false,
           kind: "http",
           title: `${st.http.method} ${st.http.path}`,
-          notes: ["No base URL \u2014 set STONEY_BASE_URL in .env or pass --base-url"]
+          notes: [
+            "No base URL \u2014 set STONEY_BASE_URL in .env or pass --base-url"
+          ]
         };
       }
       return await runHttpStep(baseUrl, st.http, st.expect);
     }
     if ("exec" in st) return await runExecStep(st.exec, st.expect);
     if ("sql" in st) return await runSqlStep(st.sql, st.expect);
-    return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type"] };
+    return {
+      ok: false,
+      kind: "exec",
+      title: "unknown",
+      notes: ["Unknown step type"]
+    };
   } catch (e) {
-    return { ok: false, kind: "exec", title: "step error", notes: [`Threw: ${e?.message || String(e)}`] };
+    return {
+      ok: false,
+      kind: "exec",
+      title: "step error",
+      notes: [`Threw: ${e?.message || String(e)}`]
+    };
   }
 }
 function pickString(v) {
@@ -17197,7 +17218,11 @@ function normalizeWorkItem(workItem, fallbackSays, fallbackLinks) {
   if (typeof workItem === "string") {
     const key = workItem.trim();
     if (!key) return void 0;
-    return { key, says: pickString(fallbackSays), links: pickStringArray(fallbackLinks) };
+    return {
+      key,
+      says: pickString(fallbackSays),
+      links: pickStringArray(fallbackLinks)
+    };
   }
   if (workItem && typeof workItem === "object") {
     const wi = workItem;
@@ -17221,7 +17246,11 @@ program2.name("stoney").description("Stoney \u2014 Requirements-as-Code CI runne
 });
 program2.command("hello").description("Smoke test \u2014 confirms the CLI is installed correctly").action(() => {
   blank();
-  log(`  \u{1FAA8}  ${c.bold("Stoney")} ${c.dim(`v${readVersion()}`)}  ${c.green("is alive")}`);
+  log(
+    `  \u{1FAA8}  ${c.bold("Stoney")} ${c.dim(`v${readVersion()}`)}  ${c.green(
+      "is alive"
+    )}`
+  );
   blank();
 });
 program2.command("parse").argument("<file>", "Contract file (.yml / .yaml / .json)").option("--pretty", "Pretty-print JSON output").description("Parse and print a contract file as JSON").action((file, opts) => {
@@ -17231,7 +17260,8 @@ program2.command("parse").argument("<file>", "Contract file (.yml / .yaml / .jso
 program2.command("validate").description("Parse and schema-validate contracts without running them").option("--suite <glob>", "Contract glob", DEFAULT_SUITE).action(async (opts) => {
   header("Validating contracts");
   const suitePaths = await (0, import_fast_glob.default)(opts.suite, { onlyFiles: true, unique: true });
-  if (!suitePaths.length) fatal(`No contract files matched: ${c.bold(opts.suite)}`);
+  if (!suitePaths.length)
+    fatal(`No contract files matched: ${c.bold(opts.suite)}`);
   infoLine(`glob   ${opts.suite}`);
   infoLine(`files  ${suitePaths.length}`);
   blank();
@@ -17241,7 +17271,11 @@ program2.command("validate").description("Parse and schema-validate contracts wi
       const suite = loadSuite(p);
       const cc = suite.contracts.length;
       const chk = suite.contracts.reduce((n, x) => n + x.checks.length, 0);
-      passLine(`${c.bold(p)}  ${c.dim(`${cc} contract${cc === 1 ? "" : "s"}, ${chk} check${chk === 1 ? "" : "s"}`)}`);
+      passLine(
+        `${c.bold(p)}  ${c.dim(
+          `${cc} contract${cc === 1 ? "" : "s"}, ${chk} check${chk === 1 ? "" : "s"}`
+        )}`
+      );
     } catch (e) {
       failLine(c.bold(p));
       indentErr(c.yellow(e?.message || String(e)));
@@ -17250,7 +17284,11 @@ program2.command("validate").description("Parse and schema-validate contracts wi
   }
   blank();
   if (hasErrors) {
-    out(`  ${c.red(FAIL)}  ${c.bold("Validation failed")} \u2014 fix the errors above before running`);
+    out(
+      `  ${c.red(FAIL)}  ${c.bold(
+        "Validation failed"
+      )} \u2014 fix the errors above before running`
+    );
     blank();
     process.exit(1);
   }
@@ -17262,25 +17300,33 @@ program2.command("run").description("Run contracts and fail CI on drift").option
     await runCommand(opts);
   } catch (e) {
     const msg = e instanceof Error ? e.stack || e.message : String(e);
-    out(`
+    out(
+      `
   ${c.red(FAIL)}  ${c.bold("Unexpected error")}
 
 ${c.dim(msg)}
-`);
+`
+    );
     process.exit(2);
   }
 });
 async function runCommand(opts) {
   const runStart = Date.now();
-  const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
+  const baseUrl = String(
+    opts.baseUrl || process.env.STONEY_BASE_URL || ""
+  ).trim();
   const argv = process.argv.slice(2).filter((a) => a.trim() !== "");
   const requireWorkItem = didUserPassFlag(argv, "--require-work-item") ? Boolean(opts.requireWorkItem) : envFlag("STONEY_REQUIRE_WORK_ITEM");
-  const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
+  const patternRaw = String(
+    opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || ""
+  ).trim();
   const pattern = patternRaw ? safeRegex2(patternRaw) : null;
-  if (patternRaw && !pattern) fatal(`Invalid --work-item-pattern regex: ${c.bold(patternRaw)}`);
+  if (patternRaw && !pattern)
+    fatal(`Invalid --work-item-pattern regex: ${c.bold(patternRaw)}`);
   header("Running contracts");
   const suitePaths = await (0, import_fast_glob.default)(opts.suite, { onlyFiles: true, unique: true });
-  if (!suitePaths.length) fatal(`No contract files matched: ${c.bold(opts.suite)}`);
+  if (!suitePaths.length)
+    fatal(`No contract files matched: ${c.bold(opts.suite)}`);
   infoLine(`glob   ${opts.suite}`);
   infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
   if (baseUrl) infoLine(`url    ${baseUrl}`);
@@ -17302,7 +17348,9 @@ async function runCommand(opts) {
     for (const contract of suite.contracts) {
       if (shouldStop) break;
       if (opts.onlyContract && contract.name !== opts.onlyContract) continue;
-      log(`  ${c.bold(c.blue(contract.name))}${contract.description ? c.dim(`  ${contract.description}`) : ""}`);
+      log(
+        `  ${c.bold(c.blue(contract.name))}${contract.description ? c.dim(`  ${contract.description}`) : ""}`
+      );
       for (const check of contract.checks) {
         if (shouldStop) break;
         if (opts.onlyCheck && check.id !== opts.onlyCheck) continue;
@@ -17319,7 +17367,9 @@ async function runCommand(opts) {
             notes.push("Missing work_item \u2014 expected a work_item.key value");
           } else if (pattern && !pattern.test(wiKey)) {
             checkOk = false;
-            notes.push(`work_item.key "${wiKey}" does not match pattern "${patternRaw}"`);
+            notes.push(
+              `work_item.key "${wiKey}" does not match pattern "${patternRaw}"`
+            );
           }
         }
         if (checkOk) {
@@ -17375,9 +17425,17 @@ async function runCommand(opts) {
     c.dim(formatMs(elapsed))
   ].filter(Boolean).join(c.dim("  \xB7  "));
   if (failed === 0) {
-    log(`  ${c.green(PASS)}  ${c.bold("All checks passed")}  ${c.dim("\xB7")}  ${parts}`);
+    log(
+      `  ${c.green(PASS)}  ${c.bold("All checks passed")}  ${c.dim(
+        "\xB7"
+      )}  ${parts}`
+    );
   } else {
-    out(`  ${c.red(FAIL)}  ${c.bold(`${failed} check${failed === 1 ? "" : "s"} failed`)}  ${c.dim("\xB7")}  ${parts}`);
+    out(
+      `  ${c.red(FAIL)}  ${c.bold(
+        `${failed} check${failed === 1 ? "" : "s"} failed`
+      )}  ${c.dim("\xB7")}  ${parts}`
+    );
   }
   blank();
   const report = {
@@ -17415,37 +17473,41 @@ program2.command("init").description("Scaffold a starter contract in contracts/"
     return;
   }
   const template = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
-version: 1
-feature: "Example Feature"
-description: "Starter contract \u2014 edit this to match your own rules."
-
-contracts:
-  - name: "Health Check"
-    description: "Verify the API is reachable and returns 200."
-    checks:
-      - id: health-check-passes
-        work_item: "ENG-1"
-        says: "The /health endpoint must return 200 OK"
-        steps:
-          - http:
-              method: GET
-              path: /health
-            expect:
-              status: 200
-
-  - name: "Auth Enforcement"
-    description: "Verify protected routes reject unauthenticated requests."
-    checks:
-      - id: protected-route-rejects-anonymous
-        work_item: "SEC-1"
-        says: "Unauthenticated requests to /api/me must be rejected with 401"
-        steps:
-          - http:
-              method: GET
-              path: /api/me
-            expect:
-              status: 401
-`;
+    version: 1
+    feature: demo
+    description: Public Stoney demo contracts against stoneydev.com
+    
+    contracts:
+      - name: health_endpoint
+        description: Verify the public health endpoint is reachable and returns the expected shape.
+        checks:
+          - id: health_ok
+            work_item: "KAN-123"
+            says: "The health endpoint must return 200 and identify the service."
+            steps:
+              - http:
+                  method: GET
+                  path: /api/health
+                expect:
+                  status: 200
+                  json:
+                    ok: true
+                    service: "stoney-web"
+                    route: "/api/health"
+    
+      - name: auth_enforcement
+        description: Verify protected routes reject unauthenticated requests.
+        checks:
+          - id: me_requires_auth
+            work_item: "KAN-124"
+            says: "Unauthenticated requests to /api/me must be rejected."
+            steps:
+              - http:
+                  method: GET
+                  path: /api/me
+                expect:
+                  status: 401
+    `;
   import_node_fs3.default.writeFileSync(filePath, template, "utf8");
   blank();
   log(`  ${c.green(PASS)}  ${c.bold("Created")} ${c.cyan(filePath)}`);
@@ -17453,7 +17515,11 @@ contracts:
   log(`  ${c.bold("Next steps")}`);
   blank();
   log(`    ${c.cyan("1")}  Edit ${c.bold(filePath)} to match your API`);
-  log(`    ${c.cyan("2")}  Add ${c.bold("STONEY_BASE_URL=http://localhost:3000")} to ${c.bold(".env")}`);
+  log(
+    `    ${c.cyan("2")}  Add ${c.bold(
+      "STONEY_BASE_URL=http://localhost:3000"
+    )} to ${c.bold(".env")}`
+  );
   log(`    ${c.cyan("3")}  ${c.bold("stoney validate")}`);
   log(`    ${c.cyan("4")}  ${c.bold("stoney run")}`);
   blank();

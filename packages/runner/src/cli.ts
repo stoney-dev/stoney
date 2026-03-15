@@ -16,24 +16,25 @@ import type { TelemetryEnvelope } from "./telemetry.js";
 
 const program = new Command();
 const TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
-const INGEST_ENDPOINT    = "https://stoneydev.com/api/ingest";
-const DEFAULT_SUITE      = "contracts/*.yml";
+const INGEST_ENDPOINT = "https://stoneydev.com/api/ingest";
+const DEFAULT_SUITE = "contracts/*.yml";
 
 // ─── ANSI colour helpers ──────────────────────────────────────────────────
 // Colours are suppressed when stdout is not a TTY or NO_COLOR is set,
 // following the https://no-color.org convention.
 
-const isTTY = Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
+const isTTY =
+  Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
 
 const c = {
-  bold:    (s: string) => isTTY ? `\x1b[1m${s}\x1b[0m`  : s,
-  dim:     (s: string) => isTTY ? `\x1b[2m${s}\x1b[0m`  : s,
-  green:   (s: string) => isTTY ? `\x1b[32m${s}\x1b[0m` : s,
-  red:     (s: string) => isTTY ? `\x1b[31m${s}\x1b[0m` : s,
-  yellow:  (s: string) => isTTY ? `\x1b[33m${s}\x1b[0m` : s,
-  cyan:    (s: string) => isTTY ? `\x1b[36m${s}\x1b[0m` : s,
-  blue:    (s: string) => isTTY ? `\x1b[34m${s}\x1b[0m` : s,
-  gray:    (s: string) => isTTY ? `\x1b[90m${s}\x1b[0m` : s,
+  bold: (s: string) => (isTTY ? `\x1b[1m${s}\x1b[0m` : s),
+  dim: (s: string) => (isTTY ? `\x1b[2m${s}\x1b[0m` : s),
+  green: (s: string) => (isTTY ? `\x1b[32m${s}\x1b[0m` : s),
+  red: (s: string) => (isTTY ? `\x1b[31m${s}\x1b[0m` : s),
+  yellow: (s: string) => (isTTY ? `\x1b[33m${s}\x1b[0m` : s),
+  cyan: (s: string) => (isTTY ? `\x1b[36m${s}\x1b[0m` : s),
+  blue: (s: string) => (isTTY ? `\x1b[34m${s}\x1b[0m` : s),
+  gray: (s: string) => (isTTY ? `\x1b[90m${s}\x1b[0m` : s),
 };
 
 // ─── Output primitives ────────────────────────────────────────────────────
@@ -41,11 +42,17 @@ const c = {
 const PASS = "✓";
 const FAIL = "✗";
 const WARN = "▲";
-const DOT  = "·";
+const DOT = "·";
 
-function log(msg = "")  { console.log(msg); }
-function out(msg: string) { console.error(msg); }  // stderr for errors/warns
-function blank()        { console.log(""); }
+function log(msg = "") {
+  console.log(msg);
+}
+function out(msg: string) {
+  console.error(msg);
+} // stderr for errors/warns
+function blank() {
+  console.log("");
+}
 
 function header(title: string) {
   blank();
@@ -59,12 +66,24 @@ function header(title: string) {
   blank();
 }
 
-function passLine(msg: string)  { log(`  ${c.green(PASS)}  ${msg}`); }
-function failLine(msg: string)  { out(`  ${c.red(FAIL)}  ${msg}`); }
-function warnLine(msg: string)  { log(`  ${c.yellow(WARN)}  ${msg}`); }
-function infoLine(msg: string)  { log(`  ${c.gray(DOT)}  ${c.dim(msg)}`); }
-function noteLine(msg: string)  { log(`       ${c.dim(msg)}`); }
-function indentErr(msg: string) { out(`       ${msg}`); }
+function passLine(msg: string) {
+  log(`  ${c.green(PASS)}  ${msg}`);
+}
+function failLine(msg: string) {
+  out(`  ${c.red(FAIL)}  ${msg}`);
+}
+function warnLine(msg: string) {
+  log(`  ${c.yellow(WARN)}  ${msg}`);
+}
+function infoLine(msg: string) {
+  log(`  ${c.gray(DOT)}  ${c.dim(msg)}`);
+}
+function noteLine(msg: string) {
+  log(`       ${c.dim(msg)}`);
+}
+function indentErr(msg: string) {
+  out(`       ${msg}`);
+}
 
 function fatal(msg: string, code = 2): never {
   blank();
@@ -76,13 +95,18 @@ function fatal(msg: string, code = 2): never {
 // ─── Process-level guards ─────────────────────────────────────────────────
 
 process.on("unhandledRejection", (reason: unknown) => {
-  const msg = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  const msg =
+    reason instanceof Error ? reason.stack || reason.message : String(reason);
   out(`\n  ${c.red(FAIL)}  ${c.bold("Unhandled error")}\n\n${c.dim(msg)}\n`);
   process.exit(2);
 });
 
 process.on("uncaughtException", (e: Error) => {
-  out(`\n  ${c.red(FAIL)}  ${c.bold("Uncaught exception")}\n\n${c.dim(e.stack || e.message)}\n`);
+  out(
+    `\n  ${c.red(FAIL)}  ${c.bold("Uncaught exception")}\n\n${c.dim(
+      e.stack || e.message
+    )}\n`
+  );
   process.exit(2);
 });
 
@@ -100,7 +124,9 @@ function readVersion(): string {
 }
 
 function envFlag(name: string): boolean {
-  const v = String(process.env[name] || "").trim().toLowerCase();
+  const v = String(process.env[name] || "")
+    .trim()
+    .toLowerCase();
   return v === "1" || v === "true" || v === "yes" || v === "on";
 }
 
@@ -109,7 +135,11 @@ function didUserPassFlag(argv: string[], flag: string): boolean {
 }
 
 function safeRegex(pat: string): RegExp | null {
-  try { return new RegExp(pat); } catch { return null; }
+  try {
+    return new RegExp(pat);
+  } catch {
+    return null;
+  }
 }
 
 function telemetryDebugEnabled(): boolean {
@@ -126,7 +156,7 @@ function getInstallationId(): string {
   try {
     const home = process.env.HOME || process.env.USERPROFILE;
     if (!home) return `local:${crypto.randomUUID()}`;
-    const dir  = path.join(home, ".stoney");
+    const dir = path.join(home, ".stoney");
     const file = path.join(dir, "telemetry-id");
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     if (fs.existsSync(file)) {
@@ -155,10 +185,14 @@ async function sendTelemetry(report: unknown): Promise<void> {
     repo_id,
     status: (report as { ok?: boolean })?.ok ? "pass" : "fail",
     metadata: {
-      kind: "stoney_run", version, installation_id, environment, repo_id,
-      run_id:     String(process.env.GITHUB_RUN_ID    || ""),
-      workflow:   String(process.env.GITHUB_WORKFLOW   || ""),
-      actor:      String(process.env.GITHUB_ACTOR      || ""),
+      kind: "stoney_run",
+      version,
+      installation_id,
+      environment,
+      repo_id,
+      run_id: String(process.env.GITHUB_RUN_ID || ""),
+      workflow: String(process.env.GITHUB_WORKFLOW || ""),
+      actor: String(process.env.GITHUB_ACTOR || ""),
       event_name: String(process.env.GITHUB_EVENT_NAME || ""),
       report,
     },
@@ -176,7 +210,8 @@ async function sendTelemetry(report: unknown): Promise<void> {
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
-    if (!res.ok && telemetryDebugEnabled()) warnLine(`Telemetry: HTTP ${res.status}`);
+    if (!res.ok && telemetryDebugEnabled())
+      warnLine(`Telemetry: HTTP ${res.status}`);
   } catch (e: any) {
     if (telemetryDebugEnabled()) warnLine(`Telemetry error: ${e?.message}`);
   } finally {
@@ -191,7 +226,7 @@ async function pushToDashboard(report: unknown, token: string): Promise<void> {
   const tid = setTimeout(() => controller.abort(), 10000);
   const version = readVersion();
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
-  const run_id  = String(process.env.GITHUB_RUN_ID || "");
+  const run_id = String(process.env.GITHUB_RUN_ID || "");
 
   try {
     const res = await fetch(INGEST_ENDPOINT, {
@@ -199,15 +234,17 @@ async function pushToDashboard(report: unknown, token: string): Promise<void> {
       headers: {
         "Content-Type": "application/json",
         "User-Agent": `stoney/${version}`,
-        "Authorization": `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         repo_id,
-        git_sha:    String(process.env.GITHUB_SHA        || ""),
-        git_ref:    String(process.env.GITHUB_REF        || ""),
+        git_sha: String(process.env.GITHUB_SHA || ""),
+        git_ref: String(process.env.GITHUB_REF || ""),
         run_id,
-        run_url:    run_id ? `https://github.com/${repo_id}/actions/runs/${run_id}` : "",
-        actor:      String(process.env.GITHUB_ACTOR      || ""),
+        run_url: run_id
+          ? `https://github.com/${repo_id}/actions/runs/${run_id}`
+          : "",
+        actor: String(process.env.GITHUB_ACTOR || ""),
         event_name: String(process.env.GITHUB_EVENT_NAME || ""),
         report,
       }),
@@ -217,7 +254,11 @@ async function pushToDashboard(report: unknown, token: string): Promise<void> {
     if (res.ok) {
       passLine(`${c.bold("Dashboard")} synced  ${c.dim("→ stoneydev.com")}`);
     } else if (res.status === 401) {
-      warnLine(`Dashboard sync failed: invalid ${c.bold("STONEY_TOKEN")} — check your .env or repo secret`);
+      warnLine(
+        `Dashboard sync failed: invalid ${c.bold(
+          "STONEY_TOKEN"
+        )} — check your .env or repo secret`
+      );
     } else {
       warnLine(`Dashboard sync failed: HTTP ${res.status}`);
     }
@@ -235,18 +276,31 @@ async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
     if ("http" in st) {
       if (!baseUrl) {
         return {
-          ok: false, kind: "http",
+          ok: false,
+          kind: "http",
           title: `${st.http.method} ${st.http.path}`,
-          notes: ["No base URL — set STONEY_BASE_URL in .env or pass --base-url"],
+          notes: [
+            "No base URL — set STONEY_BASE_URL in .env or pass --base-url",
+          ],
         };
       }
       return await runHttpStep(baseUrl, st.http, st.expect);
     }
     if ("exec" in st) return await runExecStep(st.exec, st.expect);
-    if ("sql"  in st) return await runSqlStep(st.sql, st.expect);
-    return { ok: false, kind: "exec", title: "unknown", notes: ["Unknown step type"] };
+    if ("sql" in st) return await runSqlStep(st.sql, st.expect);
+    return {
+      ok: false,
+      kind: "exec",
+      title: "unknown",
+      notes: ["Unknown step type"],
+    };
   } catch (e: any) {
-    return { ok: false, kind: "exec", title: "step error", notes: [`Threw: ${e?.message || String(e)}`] };
+    return {
+      ok: false,
+      kind: "exec",
+      title: "step error",
+      notes: [`Threw: ${e?.message || String(e)}`],
+    };
   }
 }
 
@@ -265,20 +319,24 @@ function pickStringArray(v: unknown): string[] | undefined {
 function normalizeWorkItem(
   workItem: unknown,
   fallbackSays?: unknown,
-  fallbackLinks?: unknown,
+  fallbackLinks?: unknown
 ): WorkItemRef | undefined {
   if (typeof workItem === "string") {
     const key = workItem.trim();
     if (!key) return undefined;
-    return { key, says: pickString(fallbackSays), links: pickStringArray(fallbackLinks) };
+    return {
+      key,
+      says: pickString(fallbackSays),
+      links: pickStringArray(fallbackLinks),
+    };
   }
   if (workItem && typeof workItem === "object") {
-    const wi  = workItem as { key?: unknown; says?: unknown; links?: unknown };
+    const wi = workItem as { key?: unknown; says?: unknown; links?: unknown };
     const key = typeof wi.key === "string" ? wi.key.trim() : "";
     if (!key) return undefined;
     return {
       key,
-      says:  pickString(wi.says)       ?? pickString(fallbackSays),
+      says: pickString(wi.says) ?? pickString(fallbackSays),
       links: pickStringArray(wi.links) ?? pickStringArray(fallbackLinks),
     };
   }
@@ -292,7 +350,10 @@ program
   .description("Stoney — Requirements-as-Code CI runner")
   .version(readVersion(), "-v, --version")
   .exitOverride((e: CommanderError) => {
-    if (e.code !== "commander.helpDisplayed" && e.code !== "commander.version") {
+    if (
+      e.code !== "commander.helpDisplayed" &&
+      e.code !== "commander.version"
+    ) {
       out(`\n  ${c.red(FAIL)}  ${e.message}\n`);
     }
     process.exit(e.exitCode ?? 1);
@@ -305,7 +366,11 @@ program
   .description("Smoke test — confirms the CLI is installed correctly")
   .action(() => {
     blank();
-    log(`  🪨  ${c.bold("Stoney")} ${c.dim(`v${readVersion()}`)}  ${c.green("is alive")}`);
+    log(
+      `  🪨  ${c.bold("Stoney")} ${c.dim(`v${readVersion()}`)}  ${c.green(
+        "is alive"
+      )}`
+    );
     blank();
   });
 
@@ -331,7 +396,8 @@ program
     header("Validating contracts");
 
     const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
-    if (!suitePaths.length) fatal(`No contract files matched: ${c.bold(opts.suite)}`);
+    if (!suitePaths.length)
+      fatal(`No contract files matched: ${c.bold(opts.suite)}`);
 
     infoLine(`glob   ${opts.suite}`);
     infoLine(`files  ${suitePaths.length}`);
@@ -341,10 +407,16 @@ program
 
     for (const p of suitePaths) {
       try {
-        const suite  = loadSuite(p);
-        const cc     = suite.contracts.length;
-        const chk    = suite.contracts.reduce((n, x) => n + x.checks.length, 0);
-        passLine(`${c.bold(p)}  ${c.dim(`${cc} contract${cc === 1 ? "" : "s"}, ${chk} check${chk === 1 ? "" : "s"}`)}`);
+        const suite = loadSuite(p);
+        const cc = suite.contracts.length;
+        const chk = suite.contracts.reduce((n, x) => n + x.checks.length, 0);
+        passLine(
+          `${c.bold(p)}  ${c.dim(
+            `${cc} contract${cc === 1 ? "" : "s"}, ${chk} check${
+              chk === 1 ? "" : "s"
+            }`
+          )}`
+        );
       } catch (e: any) {
         failLine(c.bold(p));
         indentErr(c.yellow(e?.message || String(e)));
@@ -355,7 +427,11 @@ program
     blank();
 
     if (hasErrors) {
-      out(`  ${c.red(FAIL)}  ${c.bold("Validation failed")} — fix the errors above before running`);
+      out(
+        `  ${c.red(FAIL)}  ${c.bold(
+          "Validation failed"
+        )} — fix the errors above before running`
+      );
       blank();
       process.exit(1);
     }
@@ -369,13 +445,13 @@ program
 program
   .command("run")
   .description("Run contracts and fail CI on drift")
-  .option("--suite <glob>",              "Contract file path or glob",                DEFAULT_SUITE)
-  .option("--base-url <url>",            "Base URL for HTTP steps (or STONEY_BASE_URL)")
-  .option("--report <path>",             "JSON report output path",                   "stoney-report.json")
-  .option("--only-contract <name>",      "Run only one contract by name")
-  .option("--only-check <id>",           "Run only one check by id")
-  .option("--fail-fast",                 "Stop on first failure",                     false)
-  .option("--require-work-item",         "Require work_item on every check",          false)
+  .option("--suite <glob>", "Contract file path or glob", DEFAULT_SUITE)
+  .option("--base-url <url>", "Base URL for HTTP steps (or STONEY_BASE_URL)")
+  .option("--report <path>", "JSON report output path", "stoney-report.json")
+  .option("--only-contract <name>", "Run only one contract by name")
+  .option("--only-check <id>", "Run only one check by id")
+  .option("--fail-fast", "Stop on first failure", false)
+  .option("--require-work-item", "Require work_item on every check", false)
   .option("--work-item-pattern <regex>", "Regex that work_item.key must match")
   .allowUnknownOption(false)
   .action(async (opts: any) => {
@@ -383,29 +459,37 @@ program
       await runCommand(opts);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.stack || e.message : String(e);
-      out(`\n  ${c.red(FAIL)}  ${c.bold("Unexpected error")}\n\n${c.dim(msg)}\n`);
+      out(
+        `\n  ${c.red(FAIL)}  ${c.bold("Unexpected error")}\n\n${c.dim(msg)}\n`
+      );
       process.exit(2);
     }
   });
 
 async function runCommand(opts: any): Promise<void> {
   const runStart = Date.now();
-  const baseUrl  = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
-  const argv     = process.argv.slice(2).filter((a) => a.trim() !== "");
+  const baseUrl = String(
+    opts.baseUrl || process.env.STONEY_BASE_URL || ""
+  ).trim();
+  const argv = process.argv.slice(2).filter((a) => a.trim() !== "");
 
   const requireWorkItem = didUserPassFlag(argv, "--require-work-item")
     ? Boolean(opts.requireWorkItem)
     : envFlag("STONEY_REQUIRE_WORK_ITEM");
 
-  const patternRaw = String(opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || "").trim();
-  const pattern    = patternRaw ? safeRegex(patternRaw) : null;
-  if (patternRaw && !pattern) fatal(`Invalid --work-item-pattern regex: ${c.bold(patternRaw)}`);
+  const patternRaw = String(
+    opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || ""
+  ).trim();
+  const pattern = patternRaw ? safeRegex(patternRaw) : null;
+  if (patternRaw && !pattern)
+    fatal(`Invalid --work-item-pattern regex: ${c.bold(patternRaw)}`);
 
   // Resolve files
   header("Running contracts");
 
   const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
-  if (!suitePaths.length) fatal(`No contract files matched: ${c.bold(opts.suite)}`);
+  if (!suitePaths.length)
+    fatal(`No contract files matched: ${c.bold(opts.suite)}`);
 
   infoLine(`glob   ${opts.suite}`);
   infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
@@ -422,10 +506,11 @@ async function runCommand(opts: any): Promise<void> {
   }
 
   // Execute
-  let failed     = 0;
-  let total      = 0;
+  let failed = 0;
+  let total = 0;
   let shouldStop = false;
-  const results: Array<{ feature: string; contract: string } & ScenarioResult> = [];
+  const results: Array<{ feature: string; contract: string } & ScenarioResult> =
+    [];
 
   for (const suite of suites) {
     if (shouldStop) break;
@@ -434,19 +519,23 @@ async function runCommand(opts: any): Promise<void> {
       if (shouldStop) break;
       if (opts.onlyContract && contract.name !== opts.onlyContract) continue;
 
-      log(`  ${c.bold(c.blue(contract.name))}${contract.description ? c.dim(`  ${contract.description}`) : ""}`);
+      log(
+        `  ${c.bold(c.blue(contract.name))}${
+          contract.description ? c.dim(`  ${contract.description}`) : ""
+        }`
+      );
 
       for (const check of contract.checks as Check[]) {
         if (shouldStop) break;
         if (opts.onlyCheck && check.id !== opts.onlyCheck) continue;
 
         total++;
-        const checkStart  = Date.now();
-        let   checkOk     = true;
-        const notes: string[]        = [];
+        const checkStart = Date.now();
+        let checkOk = true;
+        const notes: string[] = [];
         const stepResults: StepResult[] = [];
-        const wi      = normalizeWorkItem(check.work_item, check.says, check.links);
-        const wiKey   = wi?.key || "";
+        const wi = normalizeWorkItem(check.work_item, check.says, check.links);
+        const wiKey = wi?.key || "";
 
         // Work item enforcement
         if (requireWorkItem) {
@@ -455,7 +544,9 @@ async function runCommand(opts: any): Promise<void> {
             notes.push("Missing work_item — expected a work_item.key value");
           } else if (pattern && !pattern.test(wiKey)) {
             checkOk = false;
-            notes.push(`work_item.key "${wiKey}" does not match pattern "${patternRaw}"`);
+            notes.push(
+              `work_item.key "${wiKey}" does not match pattern "${patternRaw}"`
+            );
           }
         }
 
@@ -468,7 +559,10 @@ async function runCommand(opts: any): Promise<void> {
             for (const st of check.steps) {
               const r = await runOneStep(baseUrl, st);
               stepResults.push(r);
-              if (!r.ok) { checkOk = false; if (opts.failFast) break; }
+              if (!r.ok) {
+                checkOk = false;
+                if (opts.failFast) break;
+              }
             }
           }
         }
@@ -491,8 +585,13 @@ async function runCommand(opts: any): Promise<void> {
         }
 
         results.push({
-          feature: suite.feature, contract: contract.name,
-          id: check.id, ok: checkOk, work_item: wi, notes, steps: stepResults,
+          feature: suite.feature,
+          contract: contract.name,
+          id: check.id,
+          ok: checkOk,
+          work_item: wi,
+          notes,
+          steps: stepResults,
         });
 
         if (!checkOk) failed++;
@@ -505,26 +604,42 @@ async function runCommand(opts: any): Promise<void> {
 
   // Summary line
   const elapsed = Date.now() - runStart;
-  const passed  = Math.max(0, total - failed);
-  const parts   = [
+  const passed = Math.max(0, total - failed);
+  const parts = [
     failed === 0 ? c.green(`${passed} passed`) : c.red(`${failed} failed`),
     failed > 0 && passed > 0 ? c.dim(`${passed} passed`) : "",
     c.dim(`${total} total`),
     c.dim(formatMs(elapsed)),
-  ].filter(Boolean).join(c.dim("  ·  "));
+  ]
+    .filter(Boolean)
+    .join(c.dim("  ·  "));
 
   if (failed === 0) {
-    log(`  ${c.green(PASS)}  ${c.bold("All checks passed")}  ${c.dim("·")}  ${parts}`);
+    log(
+      `  ${c.green(PASS)}  ${c.bold("All checks passed")}  ${c.dim(
+        "·"
+      )}  ${parts}`
+    );
   } else {
-    out(`  ${c.red(FAIL)}  ${c.bold(`${failed} check${failed === 1 ? "" : "s"} failed`)}  ${c.dim("·")}  ${parts}`);
+    out(
+      `  ${c.red(FAIL)}  ${c.bold(
+        `${failed} check${failed === 1 ? "" : "s"} failed`
+      )}  ${c.dim("·")}  ${parts}`
+    );
   }
 
   blank();
 
   // Write report
   const report = {
-    report_version: 1, base_url: baseUrl,
-    total, failed, passed, ok: failed === 0, duration_ms: elapsed, results,
+    report_version: 1,
+    base_url: baseUrl,
+    total,
+    failed,
+    passed,
+    ok: failed === 0,
+    duration_ms: elapsed,
+    results,
   };
 
   const out2 = path.resolve(process.cwd(), opts.report);
@@ -552,7 +667,7 @@ program
   .command("init")
   .description("Scaffold a starter contract in contracts/")
   .action(() => {
-    const dir      = "contracts";
+    const dir = "contracts";
     const filePath = path.join(dir, "example.yml");
 
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -566,37 +681,41 @@ program
     }
 
     const template = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
-version: 1
-feature: "Example Feature"
-description: "Starter contract — edit this to match your own rules."
-
-contracts:
-  - name: "Health Check"
-    description: "Verify the API is reachable and returns 200."
-    checks:
-      - id: health-check-passes
-        work_item: "ENG-1"
-        says: "The /health endpoint must return 200 OK"
-        steps:
-          - http:
-              method: GET
-              path: /health
-            expect:
-              status: 200
-
-  - name: "Auth Enforcement"
-    description: "Verify protected routes reject unauthenticated requests."
-    checks:
-      - id: protected-route-rejects-anonymous
-        work_item: "SEC-1"
-        says: "Unauthenticated requests to /api/me must be rejected with 401"
-        steps:
-          - http:
-              method: GET
-              path: /api/me
-            expect:
-              status: 401
-`;
+    version: 1
+    feature: demo
+    description: Public Stoney demo contracts against stoneydev.com
+    
+    contracts:
+      - name: health_endpoint
+        description: Verify the public health endpoint is reachable and returns the expected shape.
+        checks:
+          - id: health_ok
+            work_item: "KAN-123"
+            says: "The health endpoint must return 200 and identify the service."
+            steps:
+              - http:
+                  method: GET
+                  path: /api/health
+                expect:
+                  status: 200
+                  json:
+                    ok: true
+                    service: "stoney-web"
+                    route: "/api/health"
+    
+      - name: auth_enforcement
+        description: Verify protected routes reject unauthenticated requests.
+        checks:
+          - id: me_requires_auth
+            work_item: "KAN-124"
+            says: "Unauthenticated requests to /api/me must be rejected."
+            steps:
+              - http:
+                  method: GET
+                  path: /api/me
+                expect:
+                  status: 401
+    `;
 
     fs.writeFileSync(filePath, template, "utf8");
 
@@ -606,7 +725,11 @@ contracts:
     log(`  ${c.bold("Next steps")}`);
     blank();
     log(`    ${c.cyan("1")}  Edit ${c.bold(filePath)} to match your API`);
-    log(`    ${c.cyan("2")}  Add ${c.bold("STONEY_BASE_URL=http://localhost:3000")} to ${c.bold(".env")}`);
+    log(
+      `    ${c.cyan("2")}  Add ${c.bold(
+        "STONEY_BASE_URL=http://localhost:3000"
+      )} to ${c.bold(".env")}`
+    );
     log(`    ${c.cyan("3")}  ${c.bold("stoney validate")}`);
     log(`    ${c.cyan("4")}  ${c.bold("stoney run")}`);
     blank();
