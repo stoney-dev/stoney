@@ -6,9 +6,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import fg from "fast-glob";
 import { Command, CommanderError } from "commander";
-import { runSqlStep } from "./sql.js";
 import { loadSuite } from "./contract.js";
-import type { SuiteFileV1, Step, Check } from "./schema.js";
+import type { SuiteFileV1, Step, Check, SqlStep, Expectation } from "./schema.js";
 import type { ScenarioResult, StepResult, WorkItemRef } from "./types.js";
 import { runHttpStep } from "./http.js";
 import { runExecStep } from "./exec.js";
@@ -20,8 +19,6 @@ const INGEST_ENDPOINT = "https://stoneydev.com/api/ingest";
 const DEFAULT_SUITE = "contracts/*.yml";
 
 // ─── ANSI colour helpers ──────────────────────────────────────────────────
-// Colours are suppressed when stdout is not a TTY or NO_COLOR is set,
-// following the https://no-color.org convention.
 
 const isTTY =
   Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
@@ -49,7 +46,7 @@ function log(msg = "") {
 }
 function out(msg: string) {
   console.error(msg);
-} // stderr for errors/warns
+}
 function blank() {
   console.log("");
 }
@@ -153,16 +150,21 @@ function formatMs(ms: number): string {
 function getInstallationId(): string {
   const repo = String(process.env.GITHUB_REPOSITORY || "").trim();
   if (repo) return `gh:${repo.toLowerCase()}`;
+
   try {
     const home = process.env.HOME || process.env.USERPROFILE;
     if (!home) return `local:${crypto.randomUUID()}`;
+
     const dir = path.join(home, ".stoney");
     const file = path.join(dir, "telemetry-id");
+
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
     if (fs.existsSync(file)) {
       const id = fs.readFileSync(file, "utf8").trim();
       if (id) return `local:${id}`;
     }
+
     const id = crypto.randomUUID();
     fs.writeFileSync(file, id, "utf8");
     return `local:${id}`;
@@ -171,11 +173,48 @@ function getInstallationId(): string {
   }
 }
 
+function isMissingPgError(err: unknown): boolean {
+  const msg = String((err as any)?.message || err || "");
+  return (
+    msg.includes("Cannot find module 'pg'") ||
+    msg.includes('Cannot find package "pg"') ||
+    msg.includes("Cannot find package 'pg'")
+  );
+}
+
+function isSqlStep(step: Step): step is Extract<Step, { sql: SqlStep }> {
+  return "sql" in step;
+}
+
+function isHttpStep(step: Step): step is Extract<Step, { http: unknown }> {
+  return "http" in step;
+}
+
+function isExecStep(step: Step): step is Extract<Step, { exec: unknown }> {
+  return "exec" in step;
+}
+
+async function loadSqlRunner(
+  driver: string
+): Promise<(step: SqlStep, expect?: Expectation) => Promise<StepResult>> {
+  switch (driver) {
+    case "postgres": {
+      const mod = await import("./sql.js");
+      return mod.runSqlStep;
+    }
+    default:
+      throw new Error(
+        `Unsupported SQL driver "${driver}". Supported drivers: postgres.`
+      );
+  }
+}
+
 // ─── Telemetry ────────────────────────────────────────────────────────────
 
 async function sendTelemetry(report: unknown): Promise<void> {
   const controller = new AbortController();
   const tid = setTimeout(() => controller.abort(), 5000);
+
   const version = readVersion();
   const installation_id = getInstallationId();
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
@@ -210,10 +249,14 @@ async function sendTelemetry(report: unknown): Promise<void> {
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
-    if (!res.ok && telemetryDebugEnabled())
+
+    if (!res.ok && telemetryDebugEnabled()) {
       warnLine(`Telemetry: HTTP ${res.status}`);
+    }
   } catch (e: any) {
-    if (telemetryDebugEnabled()) warnLine(`Telemetry error: ${e?.message}`);
+    if (telemetryDebugEnabled()) {
+      warnLine(`Telemetry error: ${e?.message}`);
+    }
   } finally {
     clearTimeout(tid);
   }
@@ -224,6 +267,7 @@ async function sendTelemetry(report: unknown): Promise<void> {
 async function pushToDashboard(report: unknown, token: string): Promise<void> {
   const controller = new AbortController();
   const tid = setTimeout(() => controller.abort(), 10000);
+
   const version = readVersion();
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
   const run_id = String(process.env.GITHUB_RUN_ID || "");
@@ -273,7 +317,7 @@ async function pushToDashboard(report: unknown, token: string): Promise<void> {
 
 async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
   try {
-    if ("http" in st) {
+    if (isHttpStep(st)) {
       if (!baseUrl) {
         return {
           ok: false,
@@ -284,10 +328,51 @@ async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
           ],
         };
       }
+
       return await runHttpStep(baseUrl, st.http, st.expect);
     }
-    if ("exec" in st) return await runExecStep(st.exec, st.expect);
-    if ("sql" in st) return await runSqlStep(st.sql, st.expect);
+
+    if (isExecStep(st)) {
+      return await runExecStep(st.exec, st.expect);
+    }
+
+    if (isSqlStep(st)) {
+      const driver = String(st.sql.driver || "").trim().toLowerCase();
+
+      if (!driver) {
+        return {
+          ok: false,
+          kind: "sql",
+          title: "sql",
+          notes: ['Missing SQL driver. Example: driver: "postgres".'],
+        };
+      }
+
+      try {
+        const runSqlStep = await loadSqlRunner(driver);
+        return await runSqlStep(st.sql, st.expect);
+      } catch (e: unknown) {
+        if (isMissingPgError(e)) {
+          return {
+            ok: false,
+            kind: "sql",
+            title: `sql ${driver} (${st.sql.url_env})`,
+            notes: [
+              "This contract uses SQL, but the postgres driver dependency is not available.",
+              "Install the postgres runtime dependency for the runner, or remove SQL steps from this repo.",
+            ],
+          };
+        }
+
+        return {
+          ok: false,
+          kind: "sql",
+          title: `sql ${driver} (${st.sql.url_env})`,
+          notes: [`SQL setup error: ${String((e as any)?.message || e)}`],
+        };
+      }
+    }
+
     return {
       ok: false,
       kind: "exec",
@@ -297,7 +382,7 @@ async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
   } catch (e: any) {
     return {
       ok: false,
-      kind: "exec",
+      kind: isSqlStep(st) ? "sql" : isHttpStep(st) ? "http" : "exec",
       title: "step error",
       notes: [`Threw: ${e?.message || String(e)}`],
     };
@@ -324,22 +409,26 @@ function normalizeWorkItem(
   if (typeof workItem === "string") {
     const key = workItem.trim();
     if (!key) return undefined;
+
     return {
       key,
       says: pickString(fallbackSays),
       links: pickStringArray(fallbackLinks),
     };
   }
+
   if (workItem && typeof workItem === "object") {
     const wi = workItem as { key?: unknown; says?: unknown; links?: unknown };
     const key = typeof wi.key === "string" ? wi.key.trim() : "";
     if (!key) return undefined;
+
     return {
       key,
       says: pickString(wi.says) ?? pickString(fallbackSays),
       links: pickStringArray(wi.links) ?? pickStringArray(fallbackLinks),
     };
   }
+
   return undefined;
 }
 
@@ -410,6 +499,7 @@ program
         const suite = loadSuite(p);
         const cc = suite.contracts.length;
         const chk = suite.contracts.reduce((n, x) => n + x.checks.length, 0);
+
         passLine(
           `${c.bold(p)}  ${c.dim(
             `${cc} contract${cc === 1 ? "" : "s"}, ${chk} check${
@@ -481,15 +571,17 @@ async function runCommand(opts: any): Promise<void> {
     opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || ""
   ).trim();
   const pattern = patternRaw ? safeRegex(patternRaw) : null;
-  if (patternRaw && !pattern)
-    fatal(`Invalid --work-item-pattern regex: ${c.bold(patternRaw)}`);
 
-  // Resolve files
+  if (patternRaw && !pattern) {
+    fatal(`Invalid --work-item-pattern regex: ${c.bold(patternRaw)}`);
+  }
+
   header("Running contracts");
 
   const suitePaths = await fg(opts.suite, { onlyFiles: true, unique: true });
-  if (!suitePaths.length)
+  if (!suitePaths.length) {
     fatal(`No contract files matched: ${c.bold(opts.suite)}`);
+  }
 
   infoLine(`glob   ${opts.suite}`);
   infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
@@ -505,10 +597,10 @@ async function runCommand(opts: any): Promise<void> {
     }
   }
 
-  // Execute
   let failed = 0;
   let total = 0;
   let shouldStop = false;
+
   const results: Array<{ feature: string; contract: string } & ScenarioResult> =
     [];
 
@@ -537,7 +629,6 @@ async function runCommand(opts: any): Promise<void> {
         const wi = normalizeWorkItem(check.work_item, check.says, check.links);
         const wiKey = wi?.key || "";
 
-        // Work item enforcement
         if (requireWorkItem) {
           if (!wiKey) {
             checkOk = false;
@@ -550,7 +641,6 @@ async function runCommand(opts: any): Promise<void> {
           }
         }
 
-        // Run steps
         if (checkOk) {
           if (!Array.isArray(check.steps) || check.steps.length === 0) {
             checkOk = false;
@@ -559,6 +649,7 @@ async function runCommand(opts: any): Promise<void> {
             for (const st of check.steps) {
               const r = await runOneStep(baseUrl, st);
               stepResults.push(r);
+
               if (!r.ok) {
                 checkOk = false;
                 if (opts.failFast) break;
@@ -567,7 +658,6 @@ async function runCommand(opts: any): Promise<void> {
           }
         }
 
-        // Print result
         const dur = c.dim(` ${formatMs(Date.now() - checkStart)}`);
         const tag = wiKey ? `  ${c.dim(`[${wiKey}]`)}` : "";
 
@@ -602,7 +692,6 @@ async function runCommand(opts: any): Promise<void> {
     }
   }
 
-  // Summary line
   const elapsed = Date.now() - runStart;
   const passed = Math.max(0, total - failed);
   const parts = [
@@ -630,7 +719,6 @@ async function runCommand(opts: any): Promise<void> {
 
   blank();
 
-  // Write report
   const report = {
     report_version: 1,
     base_url: baseUrl,
@@ -648,15 +736,16 @@ async function runCommand(opts: any): Promise<void> {
   infoLine(`report  ${path.relative(process.cwd(), out2)}`);
   blank();
 
-  // Machine-readable marker consumed by GitHub Action
   console.log("--- STONEY_REPORT_START ---");
   console.log(JSON.stringify(report));
   console.log("--- STONEY_REPORT_END ---");
 
-  // Post-run hooks — never block CI
   await sendTelemetry(report);
+
   const stoneyToken = String(process.env.STONEY_TOKEN || "").trim();
-  if (stoneyToken) await pushToDashboard(report, stoneyToken);
+  if (stoneyToken) {
+    await pushToDashboard(report, stoneyToken);
+  }
 
   process.exit(failed === 0 ? 0 : 1);
 }
@@ -670,7 +759,9 @@ program
     const dir = "contracts";
     const filePath = path.join(dir, "example.yml");
 
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
 
     if (fs.existsSync(filePath)) {
       blank();
@@ -681,41 +772,41 @@ program
     }
 
     const template = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
-    version: 1
-    feature: demo
-    description: Public Stoney demo contracts against stoneydev.com
-    
-    contracts:
-      - name: health_endpoint
-        description: Verify the public health endpoint is reachable and returns the expected shape.
-        checks:
-          - id: health_ok
-            work_item: "KAN-123"
-            says: "The health endpoint must return 200 and identify the service."
-            steps:
-              - http:
-                  method: GET
-                  path: /api/health
-                expect:
-                  status: 200
-                  json:
-                    ok: true
-                    service: "stoney-web"
-                    route: "/api/health"
-    
-      - name: auth_enforcement
-        description: Verify protected routes reject unauthenticated requests.
-        checks:
-          - id: me_requires_auth
-            work_item: "KAN-124"
-            says: "Unauthenticated requests to /api/me must be rejected."
-            steps:
-              - http:
-                  method: GET
-                  path: /api/me
-                expect:
-                  status: 401
-    `;
+version: 1
+feature: demo
+description: Public Stoney demo contracts against stoneydev.com
+
+contracts:
+  - name: health_endpoint
+    description: Verify the public health endpoint is reachable and returns the expected shape.
+    checks:
+      - id: health_ok
+        work_item: "KAN-123"
+        says: "The health endpoint must return 200 and identify the service."
+        steps:
+          - http:
+              method: GET
+              path: /api/health
+            expect:
+              status: 200
+              json:
+                ok: true
+                service: "stoney-web"
+                route: "/api/health"
+
+  - name: auth_enforcement
+    description: Verify protected routes reject unauthenticated requests.
+    checks:
+      - id: me_requires_auth
+        work_item: "KAN-124"
+        says: "Unauthenticated requests to /api/me must be rejected."
+        steps:
+          - http:
+              method: GET
+              path: /api/me
+            expect:
+              status: 401
+`;
 
     fs.writeFileSync(filePath, template, "utf8");
 
@@ -727,8 +818,8 @@ program
     log(`    ${c.cyan("1")}  Edit ${c.bold(filePath)} to match your API`);
     log(
       `    ${c.cyan("2")}  Add ${c.bold(
-        "STONEY_BASE_URL=http://localhost:3000"
-      )} to ${c.bold(".env")}`
+        "STONEY_BASE_URL=https://stoneydev.com"
+      )} to ${c.bold(".env")} or pass ${c.bold("--base-url")}`
     );
     log(`    ${c.cyan("3")}  ${c.bold("stoney validate")}`);
     log(`    ${c.cyan("4")}  ${c.bold("stoney run")}`);

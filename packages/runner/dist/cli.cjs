@@ -9515,52 +9515,8 @@ var require_commander = __commonJS({
   }
 });
 
-// src/cli.ts
-init_cjs_shims();
-
-// ../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/config.js
-init_cjs_shims();
-(function() {
-  require_main().config(
-    Object.assign(
-      {},
-      require_env_options(),
-      require_cli_options()(process.argv)
-    )
-  );
-})();
-
-// src/cli.ts
-var import_node_fs3 = __toESM(require("fs"), 1);
-var import_node_path4 = __toESM(require("path"), 1);
-var import_node_crypto2 = __toESM(require("crypto"), 1);
-var import_fast_glob = __toESM(require_out4(), 1);
-
-// ../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/esm.mjs
-init_cjs_shims();
-var import_index = __toESM(require_commander(), 1);
-var {
-  program,
-  createCommand,
-  createArgument,
-  createOption,
-  CommanderError,
-  InvalidArgumentError,
-  InvalidOptionArgumentError,
-  // deprecated old name
-  Command,
-  Argument,
-  Option,
-  Help
-} = import_index.default;
-
-// src/sql.ts
-init_cjs_shims();
-var import_pg = __toESM(require("pg"), 1);
-
 // src/match.ts
-init_cjs_shims();
-function isObj(x) {
+function isObj2(x) {
   return !!x && typeof x === "object" && !Array.isArray(x);
 }
 function deepSubsetMatch(actual, expected) {
@@ -9573,8 +9529,8 @@ function deepSubsetMatch(actual, expected) {
     }
     return true;
   }
-  if (isObj(expected)) {
-    if (!isObj(actual)) return false;
+  if (isObj2(expected)) {
+    if (!isObj2(actual)) return false;
     for (const key of Object.keys(expected)) {
       if (!(key in actual)) return false;
       if (!deepSubsetMatch(actual[key], expected[key])) return false;
@@ -9583,9 +9539,18 @@ function deepSubsetMatch(actual, expected) {
   }
   return false;
 }
+var init_match = __esm({
+  "src/match.ts"() {
+    "use strict";
+    init_cjs_shims();
+  }
+});
 
 // src/sql.ts
-var { Client } = import_pg.default;
+var sql_exports = {};
+__export(sql_exports, {
+  runSqlStep: () => runSqlStep
+});
 function isProbablyWriteSql(q) {
   const s = q.replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "").trim().toLowerCase();
   const write = /\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|vacuum|analyze)\b/;
@@ -9628,18 +9593,18 @@ async function connectWithRetry(client, retries = 3) {
   }
 }
 async function runSqlStep(step, expect) {
-  const title = `sql postgres (${step.url_env})`;
+  const driver = String(step.driver || "postgres").trim().toLowerCase();
+  const title = `sql ${driver} (${step.url_env})`;
   const notes = [];
   const url = process.env[step.url_env];
   if (!url) {
-    console.error(
-      `[Stoney Debug] Env var '${step.url_env}' is missing. Available keys: ${Object.keys(process.env).join(", ")}`
-    );
     return {
       ok: false,
       kind: "sql",
       title,
-      notes: [`Missing env var ${step.url_env}. Ensure it is set in the action inputs/secrets.`]
+      notes: [
+        `Missing env var ${step.url_env}. Ensure it is set in your shell, .env, or CI secret.`
+      ]
     };
   }
   const timeoutMs = typeof step.timeout_ms === "number" ? step.timeout_ms : Number(process.env.STONEY_TIMEOUT_MS || 15e3);
@@ -9650,7 +9615,7 @@ async function runSqlStep(step, expect) {
       ok: false,
       kind: "sql",
       title,
-      notes: [`Blocked multi-statement SQL. Use STONEY_ALLOW_MULTI_SQL=true.`]
+      notes: ["Blocked multi-statement SQL. Use STONEY_ALLOW_MULTI_SQL=true."]
     };
   }
   if (!allowWrite && isProbablyWriteSql(step.query)) {
@@ -9658,7 +9623,7 @@ async function runSqlStep(step, expect) {
       ok: false,
       kind: "sql",
       title,
-      notes: [`Blocked write SQL. Use SELECT-only or STONEY_ALLOW_WRITE_SQL=true.`]
+      notes: ["Blocked write SQL. Use SELECT-only or STONEY_ALLOW_WRITE_SQL=true."]
     };
   }
   const sslConfig = getSslConfig(url);
@@ -9669,7 +9634,10 @@ async function runSqlStep(step, expect) {
   });
   try {
     await connectWithRetry(client);
-    const ms = Math.max(1, Math.floor(Number.isFinite(timeoutMs) ? timeoutMs : 15e3));
+    const ms = Math.max(
+      1,
+      Math.floor(Number.isFinite(timeoutMs) ? timeoutMs : 15e3)
+    );
     await client.query(`SET statement_timeout = ${ms};`);
     await client.query(allowWrite ? "BEGIN;" : "BEGIN READ ONLY;");
     const res = await client.query(step.query);
@@ -9713,6 +9681,55 @@ async function runSqlStep(step, expect) {
     });
   }
 }
+var import_pg, Client;
+var init_sql = __esm({
+  "src/sql.ts"() {
+    "use strict";
+    init_cjs_shims();
+    import_pg = __toESM(require("pg"), 1);
+    init_match();
+    ({ Client } = import_pg.default);
+  }
+});
+
+// src/cli.ts
+init_cjs_shims();
+
+// ../../node_modules/.pnpm/dotenv@17.3.1/node_modules/dotenv/config.js
+init_cjs_shims();
+(function() {
+  require_main().config(
+    Object.assign(
+      {},
+      require_env_options(),
+      require_cli_options()(process.argv)
+    )
+  );
+})();
+
+// src/cli.ts
+var import_node_fs3 = __toESM(require("fs"), 1);
+var import_node_path4 = __toESM(require("path"), 1);
+var import_node_crypto2 = __toESM(require("crypto"), 1);
+var import_fast_glob = __toESM(require_out4(), 1);
+
+// ../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/esm.mjs
+init_cjs_shims();
+var import_index = __toESM(require_commander(), 1);
+var {
+  program,
+  createCommand,
+  createArgument,
+  createOption,
+  CommanderError,
+  InvalidArgumentError,
+  InvalidOptionArgumentError,
+  // deprecated old name
+  Command,
+  Argument,
+  Option,
+  Help
+} = import_index.default;
 
 // src/contract.ts
 init_cjs_shims();
@@ -12346,7 +12363,7 @@ var jsYaml = {
 
 // src/env.ts
 init_cjs_shims();
-function isObj2(x) {
+function isObj(x) {
   return !!x && typeof x === "object" && !Array.isArray(x);
 }
 var ENV_RE = /\$\{([A-Z0-9_]+)\}/g;
@@ -12355,7 +12372,7 @@ function interpolate(input) {
     return input.replace(ENV_RE, (_, name) => process.env[name] ?? "");
   }
   if (Array.isArray(input)) return input.map(interpolate);
-  if (isObj2(input)) {
+  if (isObj(input)) {
     const out2 = {};
     for (const [k, v] of Object.entries(input)) out2[k] = interpolate(v);
     return out2;
@@ -16643,6 +16660,7 @@ function resolveFakePlaceholders(value, seedKey) {
 }
 
 // src/http.ts
+init_match();
 function joinUrl(baseUrl, pth) {
   const base = baseUrl.replace(/\/+$/, "");
   const p = pth.startsWith("/") ? pth : `/${pth}`;
@@ -17088,6 +17106,31 @@ function getInstallationId() {
     return `local:${import_node_crypto2.default.randomUUID()}`;
   }
 }
+function isMissingPgError(err) {
+  const msg = String(err?.message || err || "");
+  return msg.includes("Cannot find module 'pg'") || msg.includes('Cannot find package "pg"') || msg.includes("Cannot find package 'pg'");
+}
+function isSqlStep(step) {
+  return "sql" in step;
+}
+function isHttpStep(step) {
+  return "http" in step;
+}
+function isExecStep(step) {
+  return "exec" in step;
+}
+async function loadSqlRunner(driver) {
+  switch (driver) {
+    case "postgres": {
+      const mod = await Promise.resolve().then(() => (init_sql(), sql_exports));
+      return mod.runSqlStep;
+    }
+    default:
+      throw new Error(
+        `Unsupported SQL driver "${driver}". Supported drivers: postgres.`
+      );
+  }
+}
 async function sendTelemetry(report) {
   const controller = new AbortController();
   const tid = setTimeout(() => controller.abort(), 5e3);
@@ -17123,10 +17166,13 @@ async function sendTelemetry(report) {
       body: JSON.stringify(payload),
       signal: controller.signal
     });
-    if (!res.ok && telemetryDebugEnabled())
+    if (!res.ok && telemetryDebugEnabled()) {
       warnLine(`Telemetry: HTTP ${res.status}`);
+    }
   } catch (e) {
-    if (telemetryDebugEnabled()) warnLine(`Telemetry error: ${e?.message}`);
+    if (telemetryDebugEnabled()) {
+      warnLine(`Telemetry error: ${e?.message}`);
+    }
   } finally {
     clearTimeout(tid);
   }
@@ -17176,7 +17222,7 @@ async function pushToDashboard(report, token) {
 }
 async function runOneStep(baseUrl, st) {
   try {
-    if ("http" in st) {
+    if (isHttpStep(st)) {
       if (!baseUrl) {
         return {
           ok: false,
@@ -17189,8 +17235,42 @@ async function runOneStep(baseUrl, st) {
       }
       return await runHttpStep(baseUrl, st.http, st.expect);
     }
-    if ("exec" in st) return await runExecStep(st.exec, st.expect);
-    if ("sql" in st) return await runSqlStep(st.sql, st.expect);
+    if (isExecStep(st)) {
+      return await runExecStep(st.exec, st.expect);
+    }
+    if (isSqlStep(st)) {
+      const driver = String(st.sql.driver || "").trim().toLowerCase();
+      if (!driver) {
+        return {
+          ok: false,
+          kind: "sql",
+          title: "sql",
+          notes: ['Missing SQL driver. Example: driver: "postgres".']
+        };
+      }
+      try {
+        const runSqlStep2 = await loadSqlRunner(driver);
+        return await runSqlStep2(st.sql, st.expect);
+      } catch (e) {
+        if (isMissingPgError(e)) {
+          return {
+            ok: false,
+            kind: "sql",
+            title: `sql ${driver} (${st.sql.url_env})`,
+            notes: [
+              "This contract uses SQL, but the postgres driver dependency is not available.",
+              "Install the postgres runtime dependency for the runner, or remove SQL steps from this repo."
+            ]
+          };
+        }
+        return {
+          ok: false,
+          kind: "sql",
+          title: `sql ${driver} (${st.sql.url_env})`,
+          notes: [`SQL setup error: ${String(e?.message || e)}`]
+        };
+      }
+    }
     return {
       ok: false,
       kind: "exec",
@@ -17200,7 +17280,7 @@ async function runOneStep(baseUrl, st) {
   } catch (e) {
     return {
       ok: false,
-      kind: "exec",
+      kind: isSqlStep(st) ? "sql" : isHttpStep(st) ? "http" : "exec",
       title: "step error",
       notes: [`Threw: ${e?.message || String(e)}`]
     };
@@ -17321,12 +17401,14 @@ async function runCommand(opts) {
     opts.workItemPattern || process.env.STONEY_WORK_ITEM_PATTERN || ""
   ).trim();
   const pattern = patternRaw ? safeRegex2(patternRaw) : null;
-  if (patternRaw && !pattern)
+  if (patternRaw && !pattern) {
     fatal(`Invalid --work-item-pattern regex: ${c.bold(patternRaw)}`);
+  }
   header("Running contracts");
   const suitePaths = await (0, import_fast_glob.default)(opts.suite, { onlyFiles: true, unique: true });
-  if (!suitePaths.length)
+  if (!suitePaths.length) {
     fatal(`No contract files matched: ${c.bold(opts.suite)}`);
+  }
   infoLine(`glob   ${opts.suite}`);
   infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
   if (baseUrl) infoLine(`url    ${baseUrl}`);
@@ -17458,13 +17540,17 @@ async function runCommand(opts) {
   console.log("--- STONEY_REPORT_END ---");
   await sendTelemetry(report);
   const stoneyToken = String(process.env.STONEY_TOKEN || "").trim();
-  if (stoneyToken) await pushToDashboard(report, stoneyToken);
+  if (stoneyToken) {
+    await pushToDashboard(report, stoneyToken);
+  }
   process.exit(failed === 0 ? 0 : 1);
 }
 program2.command("init").description("Scaffold a starter contract in contracts/").action(() => {
   const dir = "contracts";
   const filePath = import_node_path4.default.join(dir, "example.yml");
-  if (!import_node_fs3.default.existsSync(dir)) import_node_fs3.default.mkdirSync(dir, { recursive: true });
+  if (!import_node_fs3.default.existsSync(dir)) {
+    import_node_fs3.default.mkdirSync(dir, { recursive: true });
+  }
   if (import_node_fs3.default.existsSync(filePath)) {
     blank();
     warnLine(`${c.bold(filePath)} already exists \u2014 skipping`);
@@ -17473,41 +17559,41 @@ program2.command("init").description("Scaffold a starter contract in contracts/"
     return;
   }
   const template = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
-    version: 1
-    feature: demo
-    description: Public Stoney demo contracts against stoneydev.com
-    
-    contracts:
-      - name: health_endpoint
-        description: Verify the public health endpoint is reachable and returns the expected shape.
-        checks:
-          - id: health_ok
-            work_item: "KAN-123"
-            says: "The health endpoint must return 200 and identify the service."
-            steps:
-              - http:
-                  method: GET
-                  path: /api/health
-                expect:
-                  status: 200
-                  json:
-                    ok: true
-                    service: "stoney-web"
-                    route: "/api/health"
-    
-      - name: auth_enforcement
-        description: Verify protected routes reject unauthenticated requests.
-        checks:
-          - id: me_requires_auth
-            work_item: "KAN-124"
-            says: "Unauthenticated requests to /api/me must be rejected."
-            steps:
-              - http:
-                  method: GET
-                  path: /api/me
-                expect:
-                  status: 401
-    `;
+version: 1
+feature: demo
+description: Public Stoney demo contracts against stoneydev.com
+
+contracts:
+  - name: health_endpoint
+    description: Verify the public health endpoint is reachable and returns the expected shape.
+    checks:
+      - id: health_ok
+        work_item: "KAN-123"
+        says: "The health endpoint must return 200 and identify the service."
+        steps:
+          - http:
+              method: GET
+              path: /api/health
+            expect:
+              status: 200
+              json:
+                ok: true
+                service: "stoney-web"
+                route: "/api/health"
+
+  - name: auth_enforcement
+    description: Verify protected routes reject unauthenticated requests.
+    checks:
+      - id: me_requires_auth
+        work_item: "KAN-124"
+        says: "Unauthenticated requests to /api/me must be rejected."
+        steps:
+          - http:
+              method: GET
+              path: /api/me
+            expect:
+              status: 401
+`;
   import_node_fs3.default.writeFileSync(filePath, template, "utf8");
   blank();
   log(`  ${c.green(PASS)}  ${c.bold("Created")} ${c.cyan(filePath)}`);
@@ -17517,8 +17603,8 @@ program2.command("init").description("Scaffold a starter contract in contracts/"
   log(`    ${c.cyan("1")}  Edit ${c.bold(filePath)} to match your API`);
   log(
     `    ${c.cyan("2")}  Add ${c.bold(
-      "STONEY_BASE_URL=http://localhost:3000"
-    )} to ${c.bold(".env")}`
+      "STONEY_BASE_URL=https://stoneydev.com"
+    )} to ${c.bold(".env")} or pass ${c.bold("--base-url")}`
   );
   log(`    ${c.cyan("3")}  ${c.bold("stoney validate")}`);
   log(`    ${c.cyan("4")}  ${c.bold("stoney run")}`);

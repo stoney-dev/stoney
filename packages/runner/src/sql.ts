@@ -1,4 +1,3 @@
-// packages/runner/src/sql.ts
 import pg from "pg";
 import type { SqlStep, Expectation } from "./schema.js";
 import type { StepResult } from "./types.js";
@@ -7,8 +6,15 @@ import { deepSubsetMatch } from "./match.js";
 const { Client } = pg;
 
 function isProbablyWriteSql(q: string): boolean {
-  const s = q.replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "").trim().toLowerCase();
-  const write = /\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|vacuum|analyze)\b/;
+  const s = q
+    .replace(/--.*$/gm, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .trim()
+    .toLowerCase();
+
+  const write =
+    /\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|vacuum|analyze)\b/;
+
   return write.test(s);
 }
 
@@ -29,25 +35,16 @@ function isLocalhost(url: string): boolean {
   }
 }
 
-/**
- * Returns an ssl override config only when needed:
- * - Never for localhost (no SSL on local Postgres → hangs/fails)
- * - Never if the URL already specifies sslmode (let pg handle it natively)
- * - Otherwise applies { rejectUnauthorized: false } as a safe fallback for
- *   hosted/prod databases that have SSL but use self-signed certs.
- *
- * The right long-term answer for prod is to include ?sslmode=require in the
- * db_url secret, which makes this function return undefined and lets pg handle
- * SSL entirely from the connection string.
- */
 function getSslConfig(url: string): pg.ConnectionConfig["ssl"] {
   if (isLocalhost(url)) return undefined;
+
   try {
     const u = new URL(url);
     if (u.searchParams.has("sslmode")) return undefined;
   } catch {
     return undefined;
   }
+
   return { rejectUnauthorized: false };
 }
 
@@ -63,20 +60,23 @@ async function connectWithRetry(client: pg.Client, retries = 3): Promise<void> {
   }
 }
 
-export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<StepResult> {
-  const title = `sql postgres (${step.url_env})`;
+export async function runSqlStep(
+  step: SqlStep,
+  expect?: Expectation
+): Promise<StepResult> {
+  const driver = String(step.driver || "postgres").trim().toLowerCase();
+  const title = `sql ${driver} (${step.url_env})`;
   const notes: string[] = [];
 
   const url = process.env[step.url_env];
   if (!url) {
-    console.error(
-      `[Stoney Debug] Env var '${step.url_env}' is missing. Available keys: ${Object.keys(process.env).join(", ")}`
-    );
     return {
       ok: false,
       kind: "sql",
       title,
-      notes: [`Missing env var ${step.url_env}. Ensure it is set in the action inputs/secrets.`],
+      notes: [
+        `Missing env var ${step.url_env}. Ensure it is set in your shell, .env, or CI secret.`,
+      ],
     };
   }
 
@@ -95,7 +95,7 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
       ok: false,
       kind: "sql",
       title,
-      notes: [`Blocked multi-statement SQL. Use STONEY_ALLOW_MULTI_SQL=true.`],
+      notes: ["Blocked multi-statement SQL. Use STONEY_ALLOW_MULTI_SQL=true."],
     };
   }
 
@@ -104,7 +104,7 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
       ok: false,
       kind: "sql",
       title,
-      notes: [`Blocked write SQL. Use SELECT-only or STONEY_ALLOW_WRITE_SQL=true.`],
+      notes: ["Blocked write SQL. Use SELECT-only or STONEY_ALLOW_WRITE_SQL=true."],
     };
   }
 
@@ -119,9 +119,12 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
   try {
     await connectWithRetry(client);
 
-    const ms = Math.max(1, Math.floor(Number.isFinite(timeoutMs) ? timeoutMs : 15000));
-    await client.query(`SET statement_timeout = ${ms};`);
+    const ms = Math.max(
+      1,
+      Math.floor(Number.isFinite(timeoutMs) ? timeoutMs : 15000)
+    );
 
+    await client.query(`SET statement_timeout = ${ms};`);
     await client.query(allowWrite ? "BEGIN;" : "BEGIN READ ONLY;");
 
     const res = await client.query(step.query);
@@ -137,6 +140,7 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
 
     if (exp.equals !== undefined) {
       const first = res.rows?.[0];
+
       if (!first) {
         ok = false;
         notes.push("Expected equals match, but query returned no rows.");
@@ -156,7 +160,8 @@ export async function runSqlStep(step: SqlStep, expect?: Expectation): Promise<S
   } catch (e: any) {
     try {
       await client.query("ROLLBACK;");
-    } catch {} 
+    } catch {}
+
     return {
       ok: false,
       kind: "sql",

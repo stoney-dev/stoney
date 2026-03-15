@@ -71,7 +71,7 @@ runs:
       run: |
         set -euo pipefail
         cd "${{ github.action_path }}/packages/runner"
-        npm install --omit=dev --ignore-scripts 2>&1 | tail -5
+        npm install --omit=dev --ignore-scripts
 
     - name: Smoke test CLI
       shell: bash
