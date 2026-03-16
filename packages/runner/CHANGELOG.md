@@ -1,5 +1,12 @@
 # @stoney-dev/stoney-runner
 
+## 0.6.1
+
+### Patch Changes
+
+- 82b2f23: update cli to use non-hardcoded value
+- debdbe5: update the way http works
+
 ## 0.6.0
 
 ### Minor Changes
