@@ -1,4 +1,3 @@
-// packages/runner/src/http.ts
 import fs from "node:fs";
 import path from "node:path";
 import { resolveFakePlaceholders } from "./fake.js";
@@ -13,14 +12,21 @@ function joinUrl(baseUrl: string, pth: string): string {
   return `${base}${p}`;
 }
 
-function withQuery(url: string, query?: Record<string, any>): string {
+function withQuery(
+  url: string,
+  query?: Record<string, string | number | boolean>
+): string {
   if (!query) return url;
   const u = new URL(url);
   for (const [k, v] of Object.entries(query)) u.searchParams.set(k, String(v));
   return u.toString();
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -39,29 +45,56 @@ function isObj(x: unknown): x is Record<string, unknown> {
   return !!x && typeof x === "object" && !Array.isArray(x);
 }
 
-function looksLikeBodyObject(x: unknown): x is { json?: unknown; jsonFile?: string; text?: string } {
+function looksLikeBodyObject(
+  x: unknown
+): x is { json?: unknown; jsonFile?: string; text?: string } {
   if (!isObj(x)) return false;
   return "json" in x || "jsonFile" in x || "text" in x;
 }
 
-export async function runHttpStep(baseUrl: string, step: HttpStep, expect?: Expectation): Promise<StepResult> {
+export async function runHttpStep(
+  baseUrl: string,
+  step: HttpStep,
+  expect?: Expectation
+): Promise<StepResult> {
   const method = step.method.toUpperCase();
-  const url = withQuery(joinUrl(baseUrl, step.path), step.query);
   const notes: string[] = [];
 
-  const headers: Record<string, string> = { ...(step.headers || {}) };
+  const interpolatedHeaders = interpolate(step.headers || {});
+  const headers: Record<string, string> = isObj(interpolatedHeaders)
+    ? Object.fromEntries(
+        Object.entries(interpolatedHeaders).map(([k, v]) => [k, String(v)])
+      )
+    : {};
 
-  // Deterministic-ish seed per request
-  const seedKey = [process.env.GITHUB_REPOSITORY || "local", method, url].join("|");
+  const interpolatedQuery = interpolate(step.query || {});
+  const query = isObj(interpolatedQuery)
+    ? (Object.fromEntries(
+        Object.entries(interpolatedQuery).map(([k, v]) => [
+          k,
+          v as string | number | boolean,
+        ])
+      ) as Record<string, string | number | boolean>)
+    : undefined;
 
-  // --- Build request body ---
+  const url = withQuery(joinUrl(baseUrl, step.path), query);
+
+  const seedKey = [
+    process.env.GITHUB_REPOSITORY || "local",
+    method,
+    url,
+  ].join("|");
+
   let bodyText: string | undefined;
 
   if (step.body !== undefined && step.body !== null) {
-    // Preferred structured body: { json } | { jsonFile } | { text }
     if (looksLikeBodyObject(step.body)) {
       if (typeof step.body.text === "string") {
-        bodyText = step.body.text;
+        const interpolated = interpolate(step.body.text);
+        bodyText =
+          typeof interpolated === "string"
+            ? interpolated
+            : String(interpolated);
       } else if (typeof step.body.jsonFile === "string") {
         const abs = path.resolve(process.cwd(), step.body.jsonFile);
         if (!fs.existsSync(abs)) {
@@ -90,43 +123,45 @@ export async function runHttpStep(baseUrl: string, step: HttpStep, expect?: Expe
           };
         }
 
-        // allow ${ENV} interpolation in JSON files too
         const interpolated = interpolate(parsed);
-
-        // replace fake() placeholders
         const finalized = resolveFakePlaceholders(interpolated, seedKey);
 
         bodyText = JSON.stringify(finalized);
-        if (!headers["content-type"]) headers["content-type"] = "application/json";
+        if (!headers["content-type"])
+          headers["content-type"] = "application/json";
       } else {
-        // json inline
         const interpolated = interpolate(step.body.json);
         const finalized = resolveFakePlaceholders(interpolated, seedKey);
 
         bodyText = JSON.stringify(finalized);
-        if (!headers["content-type"]) headers["content-type"] = "application/json";
+        if (!headers["content-type"])
+          headers["content-type"] = "application/json";
       }
     } else if (typeof step.body === "string") {
-      // legacy: body is a raw string
-      bodyText = step.body;
+      const interpolated = interpolate(step.body);
+      bodyText =
+        typeof interpolated === "string" ? interpolated : String(interpolated);
     } else {
-      // legacy: body is a raw object/anything -> treat as JSON
       const interpolated = interpolate(step.body);
       const finalized = resolveFakePlaceholders(interpolated, seedKey);
 
       bodyText = JSON.stringify(finalized);
-      if (!headers["content-type"]) headers["content-type"] = "application/json";
+      if (!headers["content-type"])
+        headers["content-type"] = "application/json";
     }
   }
 
-  // ✅ Allow per-step override; fallback to env; fallback to defaults.
   const timeoutMs =
-    typeof step.timeout_ms === "number" && Number.isFinite(step.timeout_ms) && step.timeout_ms > 0
+    typeof step.timeout_ms === "number" &&
+    Number.isFinite(step.timeout_ms) &&
+    step.timeout_ms > 0
       ? step.timeout_ms
       : envNum("STONEY_TIMEOUT_MS", 15000);
 
   const retries =
-    typeof step.retries === "number" && Number.isFinite(step.retries) && step.retries >= 0
+    typeof step.retries === "number" &&
+    Number.isFinite(step.retries) &&
+    step.retries >= 0
       ? step.retries
       : envNum("STONEY_RETRIES", 2);
 
@@ -134,7 +169,11 @@ export async function runHttpStep(baseUrl: string, step: HttpStep, expect?: Expe
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await fetchWithTimeout(url, { method, headers, body: bodyText }, timeoutMs);
+      const res = await fetchWithTimeout(
+        url,
+        { method, headers, body: bodyText },
+        timeoutMs
+      );
       const status = res.status;
       const text = await res.text();
 
@@ -156,7 +195,10 @@ export async function runHttpStep(baseUrl: string, step: HttpStep, expect?: Expe
         notes.push(`Expected status ${exp.status} but got ${status}.`);
       }
 
-      if (typeof exp.bodyContains === "string" && !text.includes(exp.bodyContains)) {
+      if (
+        typeof exp.bodyContains === "string" &&
+        !text.includes(exp.bodyContains)
+      ) {
         ok = false;
         notes.push(`Expected body to contain: "${exp.bodyContains}"`);
       }

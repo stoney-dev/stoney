@@ -12,7 +12,7 @@ inputs:
     default: "contracts/*.yml"
 
   stoney_token:
-    description: "Stoney dashboard token."
+    description: "Stoney API token used for contract auth and dashboard sync."
     required: false
 
   db_url:

@@ -1,4 +1,3 @@
-// packages/runner/src/env.ts
 function isObj(x: unknown): x is Record<string, any> {
   return !!x && typeof x === "object" && !Array.isArray(x);
 }

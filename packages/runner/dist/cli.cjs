@@ -16694,15 +16694,30 @@ function looksLikeBodyObject(x) {
 }
 async function runHttpStep(baseUrl, step, expect) {
   const method = step.method.toUpperCase();
-  const url = withQuery(joinUrl(baseUrl, step.path), step.query);
   const notes = [];
-  const headers = { ...step.headers || {} };
-  const seedKey = [process.env.GITHUB_REPOSITORY || "local", method, url].join("|");
+  const interpolatedHeaders = interpolate(step.headers || {});
+  const headers = isObj3(interpolatedHeaders) ? Object.fromEntries(
+    Object.entries(interpolatedHeaders).map(([k, v]) => [k, String(v)])
+  ) : {};
+  const interpolatedQuery = interpolate(step.query || {});
+  const query = isObj3(interpolatedQuery) ? Object.fromEntries(
+    Object.entries(interpolatedQuery).map(([k, v]) => [
+      k,
+      v
+    ])
+  ) : void 0;
+  const url = withQuery(joinUrl(baseUrl, step.path), query);
+  const seedKey = [
+    process.env.GITHUB_REPOSITORY || "local",
+    method,
+    url
+  ].join("|");
   let bodyText;
   if (step.body !== void 0 && step.body !== null) {
     if (looksLikeBodyObject(step.body)) {
       if (typeof step.body.text === "string") {
-        bodyText = step.body.text;
+        const interpolated = interpolate(step.body.text);
+        bodyText = typeof interpolated === "string" ? interpolated : String(interpolated);
       } else if (typeof step.body.jsonFile === "string") {
         const abs = import_node_path2.default.resolve(process.cwd(), step.body.jsonFile);
         if (!import_node_fs2.default.existsSync(abs)) {
@@ -16732,20 +16747,24 @@ async function runHttpStep(baseUrl, step, expect) {
         const interpolated = interpolate(parsed);
         const finalized = resolveFakePlaceholders(interpolated, seedKey);
         bodyText = JSON.stringify(finalized);
-        if (!headers["content-type"]) headers["content-type"] = "application/json";
+        if (!headers["content-type"])
+          headers["content-type"] = "application/json";
       } else {
         const interpolated = interpolate(step.body.json);
         const finalized = resolveFakePlaceholders(interpolated, seedKey);
         bodyText = JSON.stringify(finalized);
-        if (!headers["content-type"]) headers["content-type"] = "application/json";
+        if (!headers["content-type"])
+          headers["content-type"] = "application/json";
       }
     } else if (typeof step.body === "string") {
-      bodyText = step.body;
+      const interpolated = interpolate(step.body);
+      bodyText = typeof interpolated === "string" ? interpolated : String(interpolated);
     } else {
       const interpolated = interpolate(step.body);
       const finalized = resolveFakePlaceholders(interpolated, seedKey);
       bodyText = JSON.stringify(finalized);
-      if (!headers["content-type"]) headers["content-type"] = "application/json";
+      if (!headers["content-type"])
+        headers["content-type"] = "application/json";
     }
   }
   const timeoutMs = typeof step.timeout_ms === "number" && Number.isFinite(step.timeout_ms) && step.timeout_ms > 0 ? step.timeout_ms : envNum("STONEY_TIMEOUT_MS", 15e3);
@@ -16753,7 +16772,11 @@ async function runHttpStep(baseUrl, step, expect) {
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await fetchWithTimeout(url, { method, headers, body: bodyText }, timeoutMs);
+      const res = await fetchWithTimeout(
+        url,
+        { method, headers, body: bodyText },
+        timeoutMs
+      );
       const status = res.status;
       const text = await res.text();
       let json2;
