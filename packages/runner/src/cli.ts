@@ -7,7 +7,13 @@ import crypto from "node:crypto";
 import fg from "fast-glob";
 import { Command, CommanderError } from "commander";
 import { loadSuite } from "./contract.js";
-import type { SuiteFileV1, Step, Check, SqlStep, Expectation } from "./schema.js";
+import type {
+  SuiteFileV1,
+  Step,
+  Check,
+  SqlStep,
+  Expectation,
+} from "./schema.js";
 import type { ScenarioResult, StepResult, WorkItemRef } from "./types.js";
 import { runHttpStep } from "./http.js";
 import { runExecStep } from "./exec.js";
@@ -16,6 +22,9 @@ import type { TelemetryEnvelope } from "./telemetry.js";
 const program = new Command();
 
 const DEFAULT_STONEY_ORIGIN = "https://stoneydev.com";
+const DEFAULT_SUITE = "contracts/*.yml";
+
+// ─── Origin / sync helpers ────────────────────────────────────────────────
 
 function normalizeOrigin(value: string): string {
   return value.replace(/\/+$/, "");
@@ -35,7 +44,9 @@ function getIngestEndpoint(): string {
   return `${getStoneyOrigin()}/api/ingest`;
 }
 
-const DEFAULT_SUITE = "contracts/*.yml";
+function shouldSyncDashboard(): boolean {
+  return String(process.env.GITHUB_ACTIONS || "").trim() === "true";
+}
 
 // ─── ANSI colour helpers ──────────────────────────────────────────────────
 
@@ -312,7 +323,9 @@ async function pushToDashboard(report: unknown, token: string): Promise<void> {
     });
 
     if (res.ok) {
-      passLine(`${c.bold("Dashboard")} synced  ${c.dim(`→ ${getStoneyOrigin()}`)}`);
+      passLine(
+        `${c.bold("Dashboard")} synced  ${c.dim(`→ ${getStoneyOrigin()}`)}`
+      );
     } else if (res.status === 401) {
       warnLine(
         `Dashboard sync failed: invalid ${c.bold(
@@ -594,7 +607,11 @@ async function runCommand(opts: any): Promise<void> {
   infoLine(`glob   ${opts.suite}`);
   infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
   if (baseUrl) infoLine(`url    ${baseUrl}`);
-  infoLine(`sync   ${getIngestEndpoint()}`);
+  infoLine(
+    `sync   ${
+      shouldSyncDashboard() ? getIngestEndpoint() : "disabled (local)"
+    }`
+  );
   blank();
 
   const suites: SuiteFileV1[] = [];
@@ -752,8 +769,15 @@ async function runCommand(opts: any): Promise<void> {
   await sendTelemetry(report);
 
   const stoneyToken = String(process.env.STONEY_TOKEN || "").trim();
-  if (stoneyToken) {
-    await pushToDashboard(report, stoneyToken);
+
+  if (shouldSyncDashboard()) {
+    if (stoneyToken) {
+      await pushToDashboard(report, stoneyToken);
+    } else {
+      warnLine("dashboard sync skipped: STONEY_TOKEN not set");
+    }
+  } else {
+    infoLine("dashboard sync skipped (local run)");
   }
 
   process.exit(failed === 0 ? 0 : 1);
@@ -829,9 +853,7 @@ contracts:
       )} to ${c.bold(".env")} or pass ${c.bold("--base-url")}`
     );
     log(
-      `    ${c.cyan("3")}  Optional: set ${c.bold(
-        "STONEY_ORIGIN=http://localhost:3000"
-      )} to sync into a local dashboard`
+      `    ${c.cyan("3")}  CI runs sync automatically to the dashboard`
     );
     log(`    ${c.cyan("4")}  ${c.bold("stoney validate")}`);
     log(`    ${c.cyan("5")}  ${c.bold("stoney run")}`);

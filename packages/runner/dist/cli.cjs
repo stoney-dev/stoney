@@ -16997,6 +16997,7 @@ async function runExecStep(step, expect) {
 // src/cli.ts
 var program2 = new Command();
 var DEFAULT_STONEY_ORIGIN = "https://stoneydev.com";
+var DEFAULT_SUITE = "contracts/*.yml";
 function normalizeOrigin(value) {
   return value.replace(/\/+$/, "");
 }
@@ -17011,7 +17012,9 @@ function getTelemetryEndpoint() {
 function getIngestEndpoint() {
   return `${getStoneyOrigin()}/api/ingest`;
 }
-var DEFAULT_SUITE = "contracts/*.yml";
+function shouldSyncDashboard() {
+  return String(process.env.GITHUB_ACTIONS || "").trim() === "true";
+}
 var isTTY = Boolean(process.stdout.isTTY) && process.env.NO_COLOR === void 0;
 var c = {
   bold: (s) => isTTY ? `\x1B[1m${s}\x1B[0m` : s,
@@ -17237,7 +17240,9 @@ async function pushToDashboard(report, token) {
       signal: controller.signal
     });
     if (res.ok) {
-      passLine(`${c.bold("Dashboard")} synced  ${c.dim(`\u2192 ${getStoneyOrigin()}`)}`);
+      passLine(
+        `${c.bold("Dashboard")} synced  ${c.dim(`\u2192 ${getStoneyOrigin()}`)}`
+      );
     } else if (res.status === 401) {
       warnLine(
         `Dashboard sync failed: invalid ${c.bold(
@@ -17445,7 +17450,9 @@ async function runCommand(opts) {
   infoLine(`glob   ${opts.suite}`);
   infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
   if (baseUrl) infoLine(`url    ${baseUrl}`);
-  infoLine(`sync   ${getIngestEndpoint()}`);
+  infoLine(
+    `sync   ${shouldSyncDashboard() ? getIngestEndpoint() : "disabled (local)"}`
+  );
   blank();
   const suites = [];
   for (const p of suitePaths) {
@@ -17574,8 +17581,14 @@ async function runCommand(opts) {
   console.log("--- STONEY_REPORT_END ---");
   await sendTelemetry(report);
   const stoneyToken = String(process.env.STONEY_TOKEN || "").trim();
-  if (stoneyToken) {
-    await pushToDashboard(report, stoneyToken);
+  if (shouldSyncDashboard()) {
+    if (stoneyToken) {
+      await pushToDashboard(report, stoneyToken);
+    } else {
+      warnLine("dashboard sync skipped: STONEY_TOKEN not set");
+    }
+  } else {
+    infoLine("dashboard sync skipped (local run)");
   }
   process.exit(failed === 0 ? 0 : 1);
 }
@@ -17641,9 +17654,7 @@ contracts:
     )} to ${c.bold(".env")} or pass ${c.bold("--base-url")}`
   );
   log(
-    `    ${c.cyan("3")}  Optional: set ${c.bold(
-      "STONEY_ORIGIN=http://localhost:3000"
-    )} to sync into a local dashboard`
+    `    ${c.cyan("3")}  CI runs sync automatically to the dashboard`
   );
   log(`    ${c.cyan("4")}  ${c.bold("stoney validate")}`);
   log(`    ${c.cyan("5")}  ${c.bold("stoney run")}`);
