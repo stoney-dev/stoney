@@ -16996,8 +16996,21 @@ async function runExecStep(step, expect) {
 
 // src/cli.ts
 var program2 = new Command();
-var TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
-var INGEST_ENDPOINT = "https://stoneydev.com/api/ingest";
+var DEFAULT_STONEY_ORIGIN = "https://stoneydev.com";
+function normalizeOrigin(value) {
+  return value.replace(/\/+$/, "");
+}
+function getStoneyOrigin() {
+  return normalizeOrigin(
+    String(process.env.STONEY_ORIGIN || DEFAULT_STONEY_ORIGIN).trim()
+  );
+}
+function getTelemetryEndpoint() {
+  return `${getStoneyOrigin()}/api/telemetry`;
+}
+function getIngestEndpoint() {
+  return `${getStoneyOrigin()}/api/ingest`;
+}
 var DEFAULT_SUITE = "contracts/*.yml";
 var isTTY = Boolean(process.stdout.isTTY) && process.env.NO_COLOR === void 0;
 var c = {
@@ -17036,9 +17049,6 @@ function header(title) {
 }
 function passLine(msg) {
   log(`  ${c.green(PASS)}  ${msg}`);
-}
-function failLine(msg) {
-  out(`  ${c.red(FAIL)}  ${msg}`);
 }
 function warnLine(msg) {
   log(`  ${c.yellow(WARN)}  ${msg}`);
@@ -17178,7 +17188,7 @@ async function sendTelemetry(report) {
     }
   };
   try {
-    const res = await fetch(TELEMETRY_ENDPOINT, {
+    const res = await fetch(getTelemetryEndpoint(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -17207,7 +17217,7 @@ async function pushToDashboard(report, token) {
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
   const run_id = String(process.env.GITHUB_RUN_ID || "");
   try {
-    const res = await fetch(INGEST_ENDPOINT, {
+    const res = await fetch(getIngestEndpoint(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -17227,7 +17237,7 @@ async function pushToDashboard(report, token) {
       signal: controller.signal
     });
     if (res.ok) {
-      passLine(`${c.bold("Dashboard")} synced  ${c.dim("\u2192 stoneydev.com")}`);
+      passLine(`${c.bold("Dashboard")} synced  ${c.dim(`\u2192 ${getStoneyOrigin()}`)}`);
     } else if (res.status === 401) {
       warnLine(
         `Dashboard sync failed: invalid ${c.bold(
@@ -17380,7 +17390,7 @@ program2.command("validate").description("Parse and schema-validate contracts wi
         )}`
       );
     } catch (e) {
-      failLine(c.bold(p));
+      out(`  ${c.red(FAIL)}  ${c.bold(p)}`);
       indentErr(c.yellow(e?.message || String(e)));
       hasErrors = true;
     }
@@ -17435,6 +17445,7 @@ async function runCommand(opts) {
   infoLine(`glob   ${opts.suite}`);
   infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
   if (baseUrl) infoLine(`url    ${baseUrl}`);
+  infoLine(`sync   ${getIngestEndpoint()}`);
   blank();
   const suites = [];
   for (const p of suitePaths) {
@@ -17629,8 +17640,13 @@ contracts:
       "STONEY_BASE_URL=https://stoneydev.com"
     )} to ${c.bold(".env")} or pass ${c.bold("--base-url")}`
   );
-  log(`    ${c.cyan("3")}  ${c.bold("stoney validate")}`);
-  log(`    ${c.cyan("4")}  ${c.bold("stoney run")}`);
+  log(
+    `    ${c.cyan("3")}  Optional: set ${c.bold(
+      "STONEY_ORIGIN=http://localhost:3000"
+    )} to sync into a local dashboard`
+  );
+  log(`    ${c.cyan("4")}  ${c.bold("stoney validate")}`);
+  log(`    ${c.cyan("5")}  ${c.bold("stoney run")}`);
   blank();
 });
 async function main() {

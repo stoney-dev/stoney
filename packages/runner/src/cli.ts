@@ -14,8 +14,27 @@ import { runExecStep } from "./exec.js";
 import type { TelemetryEnvelope } from "./telemetry.js";
 
 const program = new Command();
-const TELEMETRY_ENDPOINT = "https://stoneydev.com/api/telemetry";
-const INGEST_ENDPOINT = "https://stoneydev.com/api/ingest";
+
+const DEFAULT_STONEY_ORIGIN = "https://stoneydev.com";
+
+function normalizeOrigin(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function getStoneyOrigin(): string {
+  return normalizeOrigin(
+    String(process.env.STONEY_ORIGIN || DEFAULT_STONEY_ORIGIN).trim()
+  );
+}
+
+function getTelemetryEndpoint(): string {
+  return `${getStoneyOrigin()}/api/telemetry`;
+}
+
+function getIngestEndpoint(): string {
+  return `${getStoneyOrigin()}/api/ingest`;
+}
+
 const DEFAULT_SUITE = "contracts/*.yml";
 
 // ─── ANSI colour helpers ──────────────────────────────────────────────────
@@ -65,9 +84,6 @@ function header(title: string) {
 
 function passLine(msg: string) {
   log(`  ${c.green(PASS)}  ${msg}`);
-}
-function failLine(msg: string) {
-  out(`  ${c.red(FAIL)}  ${msg}`);
 }
 function warnLine(msg: string) {
   log(`  ${c.yellow(WARN)}  ${msg}`);
@@ -238,7 +254,7 @@ async function sendTelemetry(report: unknown): Promise<void> {
   };
 
   try {
-    const res = await fetch(TELEMETRY_ENDPOINT, {
+    const res = await fetch(getTelemetryEndpoint(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -273,7 +289,7 @@ async function pushToDashboard(report: unknown, token: string): Promise<void> {
   const run_id = String(process.env.GITHUB_RUN_ID || "");
 
   try {
-    const res = await fetch(INGEST_ENDPOINT, {
+    const res = await fetch(getIngestEndpoint(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -296,7 +312,7 @@ async function pushToDashboard(report: unknown, token: string): Promise<void> {
     });
 
     if (res.ok) {
-      passLine(`${c.bold("Dashboard")} synced  ${c.dim("→ stoneydev.com")}`);
+      passLine(`${c.bold("Dashboard")} synced  ${c.dim(`→ ${getStoneyOrigin()}`)}`);
     } else if (res.status === 401) {
       warnLine(
         `Dashboard sync failed: invalid ${c.bold(
@@ -448,8 +464,6 @@ program
     process.exit(e.exitCode ?? 1);
   });
 
-// hello ────────────────────────────────────────────────────────────────────
-
 program
   .command("hello")
   .description("Smoke test — confirms the CLI is installed correctly")
@@ -463,8 +477,6 @@ program
     blank();
   });
 
-// parse ────────────────────────────────────────────────────────────────────
-
 program
   .command("parse")
   .argument("<file>", "Contract file (.yml / .yaml / .json)")
@@ -474,8 +486,6 @@ program
     const suite = loadSuite(file);
     log(opts.pretty ? JSON.stringify(suite, null, 2) : JSON.stringify(suite));
   });
-
-// validate ─────────────────────────────────────────────────────────────────
 
 program
   .command("validate")
@@ -508,7 +518,7 @@ program
           )}`
         );
       } catch (e: any) {
-        failLine(c.bold(p));
+        out(`  ${c.red(FAIL)}  ${c.bold(p)}`);
         indentErr(c.yellow(e?.message || String(e)));
         hasErrors = true;
       }
@@ -529,8 +539,6 @@ program
     log(`  ${c.green(PASS)}  ${c.bold("All contracts valid")}`);
     blank();
   });
-
-// run ──────────────────────────────────────────────────────────────────────
 
 program
   .command("run")
@@ -586,6 +594,7 @@ async function runCommand(opts: any): Promise<void> {
   infoLine(`glob   ${opts.suite}`);
   infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
   if (baseUrl) infoLine(`url    ${baseUrl}`);
+  infoLine(`sync   ${getIngestEndpoint()}`);
   blank();
 
   const suites: SuiteFileV1[] = [];
@@ -750,8 +759,6 @@ async function runCommand(opts: any): Promise<void> {
   process.exit(failed === 0 ? 0 : 1);
 }
 
-// init ─────────────────────────────────────────────────────────────────────
-
 program
   .command("init")
   .description("Scaffold a starter contract in contracts/")
@@ -821,12 +828,15 @@ contracts:
         "STONEY_BASE_URL=https://stoneydev.com"
       )} to ${c.bold(".env")} or pass ${c.bold("--base-url")}`
     );
-    log(`    ${c.cyan("3")}  ${c.bold("stoney validate")}`);
-    log(`    ${c.cyan("4")}  ${c.bold("stoney run")}`);
+    log(
+      `    ${c.cyan("3")}  Optional: set ${c.bold(
+        "STONEY_ORIGIN=http://localhost:3000"
+      )} to sync into a local dashboard`
+    );
+    log(`    ${c.cyan("4")}  ${c.bold("stoney validate")}`);
+    log(`    ${c.cyan("5")}  ${c.bold("stoney run")}`);
     blank();
   });
-
-// ─── Entry ────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   await program.parseAsync(process.argv);
