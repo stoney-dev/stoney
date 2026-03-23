@@ -1,5 +1,12 @@
 # @stoney-dev/stoney-runner
 
+## 0.6.2
+
+### Patch Changes
+
+- 5b6c055: update cli for proper db env import
+- a296a34: update sign and cli cmds
+
 ## 0.6.1
 
 ### Patch Changes
