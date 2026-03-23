@@ -18,6 +18,7 @@ import type { ScenarioResult, StepResult, WorkItemRef } from "./types.js";
 import { runHttpStep } from "./http.js";
 import { runExecStep } from "./exec.js";
 import type { TelemetryEnvelope } from "./telemetry.js";
+import { signPayload } from "./sign.js";
 
 const program = new Command();
 
@@ -54,14 +55,14 @@ const isTTY =
   Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
 
 const c = {
-  bold: (s: string) => (isTTY ? `\x1b[1m${s}\x1b[0m` : s),
-  dim: (s: string) => (isTTY ? `\x1b[2m${s}\x1b[0m` : s),
-  green: (s: string) => (isTTY ? `\x1b[32m${s}\x1b[0m` : s),
-  red: (s: string) => (isTTY ? `\x1b[31m${s}\x1b[0m` : s),
+  bold:   (s: string) => (isTTY ? `\x1b[1m${s}\x1b[0m` : s),
+  dim:    (s: string) => (isTTY ? `\x1b[2m${s}\x1b[0m` : s),
+  green:  (s: string) => (isTTY ? `\x1b[32m${s}\x1b[0m` : s),
+  red:    (s: string) => (isTTY ? `\x1b[31m${s}\x1b[0m` : s),
   yellow: (s: string) => (isTTY ? `\x1b[33m${s}\x1b[0m` : s),
-  cyan: (s: string) => (isTTY ? `\x1b[36m${s}\x1b[0m` : s),
-  blue: (s: string) => (isTTY ? `\x1b[34m${s}\x1b[0m` : s),
-  gray: (s: string) => (isTTY ? `\x1b[90m${s}\x1b[0m` : s),
+  cyan:   (s: string) => (isTTY ? `\x1b[36m${s}\x1b[0m` : s),
+  blue:   (s: string) => (isTTY ? `\x1b[34m${s}\x1b[0m` : s),
+  gray:   (s: string) => (isTTY ? `\x1b[90m${s}\x1b[0m` : s),
 };
 
 // ─── Output primitives ────────────────────────────────────────────────────
@@ -69,17 +70,11 @@ const c = {
 const PASS = "✓";
 const FAIL = "✗";
 const WARN = "▲";
-const DOT = "·";
+const DOT  = "·";
 
-function log(msg = "") {
-  console.log(msg);
-}
-function out(msg: string) {
-  console.error(msg);
-}
-function blank() {
-  console.log("");
-}
+function log(msg = "")    { console.log(msg); }
+function out(msg: string) { console.error(msg); }
+function blank()          { console.log(""); }
 
 function header(title: string) {
   blank();
@@ -93,21 +88,11 @@ function header(title: string) {
   blank();
 }
 
-function passLine(msg: string) {
-  log(`  ${c.green(PASS)}  ${msg}`);
-}
-function warnLine(msg: string) {
-  log(`  ${c.yellow(WARN)}  ${msg}`);
-}
-function infoLine(msg: string) {
-  log(`  ${c.gray(DOT)}  ${c.dim(msg)}`);
-}
-function noteLine(msg: string) {
-  log(`       ${c.dim(msg)}`);
-}
-function indentErr(msg: string) {
-  out(`       ${msg}`);
-}
+function passLine(msg: string)  { log(`  ${c.green(PASS)}  ${msg}`); }
+function warnLine(msg: string)  { log(`  ${c.yellow(WARN)}  ${msg}`); }
+function infoLine(msg: string)  { log(`  ${c.gray(DOT)}  ${c.dim(msg)}`); }
+function noteLine(msg: string)  { log(`       ${c.dim(msg)}`); }
+function indentErr(msg: string) { out(`       ${msg}`); }
 
 function fatal(msg: string, code = 2): never {
   blank();
@@ -148,9 +133,7 @@ function readVersion(): string {
 }
 
 function envFlag(name: string): boolean {
-  const v = String(process.env[name] || "")
-    .trim()
-    .toLowerCase();
+  const v = String(process.env[name] || "").trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes" || v === "on";
 }
 
@@ -182,7 +165,7 @@ function getInstallationId(): string {
     const home = process.env.HOME || process.env.USERPROFILE;
     if (!home) return `local:${crypto.randomUUID()}`;
 
-    const dir = path.join(home, ".stoney");
+    const dir  = path.join(home, ".stoney");
     const file = path.join(dir, "telemetry-id");
 
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -242,10 +225,10 @@ async function sendTelemetry(report: unknown): Promise<void> {
   const controller = new AbortController();
   const tid = setTimeout(() => controller.abort(), 5000);
 
-  const version = readVersion();
+  const version         = readVersion();
   const installation_id = getInstallationId();
-  const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
-  const environment = repo_id !== "unknown" ? "github" : "local";
+  const repo_id         = String(process.env.GITHUB_REPOSITORY || "unknown");
+  const environment     = repo_id !== "unknown" ? "github" : "local";
 
   const payload: TelemetryEnvelope = {
     repo_id,
@@ -256,9 +239,9 @@ async function sendTelemetry(report: unknown): Promise<void> {
       installation_id,
       environment,
       repo_id,
-      run_id: String(process.env.GITHUB_RUN_ID || ""),
-      workflow: String(process.env.GITHUB_WORKFLOW || ""),
-      actor: String(process.env.GITHUB_ACTOR || ""),
+      run_id:     String(process.env.GITHUB_RUN_ID || ""),
+      workflow:   String(process.env.GITHUB_WORKFLOW || ""),
+      actor:      String(process.env.GITHUB_ACTOR || ""),
       event_name: String(process.env.GITHUB_EVENT_NAME || ""),
       report,
     },
@@ -268,10 +251,10 @@ async function sendTelemetry(report: unknown): Promise<void> {
     const res = await fetch(getTelemetryEndpoint(), {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "User-Agent": `stoney/${version}`,
+        "Content-Type":          "application/json",
+        "User-Agent":             `stoney/${version}`,
         "X-Stoney-Installation": installation_id,
-        "X-Stoney-Env": environment,
+        "X-Stoney-Env":          environment,
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
@@ -290,35 +273,43 @@ async function sendTelemetry(report: unknown): Promise<void> {
 }
 
 // ─── Dashboard push ───────────────────────────────────────────────────────
+// FIX: Signs payload with HMAC-SHA256 before sending.
+// The server requires X-Stoney-Signature on every ingest request.
 
 async function pushToDashboard(report: unknown, token: string): Promise<void> {
   const controller = new AbortController();
-  const tid = setTimeout(() => controller.abort(), 10000);
+  const tid        = setTimeout(() => controller.abort(), 10000);
 
   const version = readVersion();
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
-  const run_id = String(process.env.GITHUB_RUN_ID || "");
+  const run_id  = String(process.env.GITHUB_RUN_ID || "");
+
+  // Serialize body first — signature is computed over the exact bytes sent
+  const body = JSON.stringify({
+    repo_id,
+    git_sha:    String(process.env.GITHUB_SHA || ""),
+    git_ref:    String(process.env.GITHUB_REF || ""),
+    run_id,
+    run_url:    run_id
+      ? `https://github.com/${repo_id}/actions/runs/${run_id}`
+      : "",
+    actor:      String(process.env.GITHUB_ACTOR || ""),
+    event_name: String(process.env.GITHUB_EVENT_NAME || ""),
+    report,
+  });
+
+  const signature = signPayload(body, token);   // ← NEW: compute signature
 
   try {
     const res = await fetch(getIngestEndpoint(), {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "User-Agent": `stoney/${version}`,
-        Authorization: `Bearer ${token}`,
+        "Content-Type":       "application/json",
+        "User-Agent":         `stoney/${version}`,
+        "Authorization":      `Bearer ${token}`,
+        "X-Stoney-Signature": signature,         // ← NEW: send signature
       },
-      body: JSON.stringify({
-        repo_id,
-        git_sha: String(process.env.GITHUB_SHA || ""),
-        git_ref: String(process.env.GITHUB_REF || ""),
-        run_id,
-        run_url: run_id
-          ? `https://github.com/${repo_id}/actions/runs/${run_id}`
-          : "",
-        actor: String(process.env.GITHUB_ACTOR || ""),
-        event_name: String(process.env.GITHUB_EVENT_NAME || ""),
-        report,
-      }),
+      body,
       signal: controller.signal,
     });
 
@@ -327,16 +318,28 @@ async function pushToDashboard(report: unknown, token: string): Promise<void> {
         `${c.bold("Dashboard")} synced  ${c.dim(`→ ${getStoneyOrigin()}`)}`
       );
     } else if (res.status === 401) {
+      let hint = "";
+      try {
+        const data = await res.json() as { error?: string };
+        hint = data.error ? `\n       ${c.dim(data.error)}` : "";
+      } catch { /* ignore */ }
       warnLine(
-        `Dashboard sync failed: invalid ${c.bold(
-          "STONEY_TOKEN"
-        )} — check your .env or repo secret`
+        `Dashboard sync failed: authentication error${hint}`
       );
+      warnLine(
+        `  Check that ${c.bold("STONEY_TOKEN")} is set correctly in your repo secrets`
+      );
+    } else if (res.status === 429) {
+      warnLine("Dashboard sync failed: rate limit exceeded — will retry on next run");
     } else {
       warnLine(`Dashboard sync failed: HTTP ${res.status}`);
     }
   } catch (e: any) {
-    warnLine(`Dashboard sync error: ${e?.message || String(e)}`);
+    if (e?.name === "AbortError") {
+      warnLine("Dashboard sync timed out (10s)");
+    } else {
+      warnLine(`Dashboard sync error: ${e?.message || String(e)}`);
+    }
   } finally {
     clearTimeout(tid);
   }
@@ -349,20 +352,17 @@ async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
     if (isHttpStep(st)) {
       if (!baseUrl) {
         return {
-          ok: false,
-          kind: "http",
-          title: `${st.http.method} ${st.http.path}`,
-          notes: [
-            "No base URL — set STONEY_BASE_URL in .env or pass --base-url",
-          ],
+          ok:    false,
+          kind:  "http",
+          title: `${(st as any).http.method} ${(st as any).http.path}`,
+          notes: ["No base URL — set STONEY_BASE_URL in .env or pass --base-url"],
         };
       }
-
-      return await runHttpStep(baseUrl, st.http, st.expect);
+      return await runHttpStep(baseUrl, (st as any).http, (st as any).expect);
     }
 
     if (isExecStep(st)) {
-      return await runExecStep(st.exec, st.expect);
+      return await runExecStep((st as any).exec, (st as any).expect);
     }
 
     if (isSqlStep(st)) {
@@ -370,8 +370,8 @@ async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
 
       if (!driver) {
         return {
-          ok: false,
-          kind: "sql",
+          ok:    false,
+          kind:  "sql",
           title: "sql",
           notes: ['Missing SQL driver. Example: driver: "postgres".'],
         };
@@ -379,23 +379,22 @@ async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
 
       try {
         const runSqlStep = await loadSqlRunner(driver);
-        return await runSqlStep(st.sql, st.expect);
+        return await runSqlStep(st.sql, (st as any).expect);
       } catch (e: unknown) {
         if (isMissingPgError(e)) {
           return {
-            ok: false,
-            kind: "sql",
+            ok:    false,
+            kind:  "sql",
             title: `sql ${driver} (${st.sql.url_env})`,
             notes: [
-              "This contract uses SQL, but the postgres driver dependency is not available.",
-              "Install the postgres runtime dependency for the runner, or remove SQL steps from this repo.",
+              "This contract uses SQL, but the postgres driver is not available.",
+              "Install the postgres runtime dependency, or remove SQL steps.",
             ],
           };
         }
-
         return {
-          ok: false,
-          kind: "sql",
+          ok:    false,
+          kind:  "sql",
           title: `sql ${driver} (${st.sql.url_env})`,
           notes: [`SQL setup error: ${String((e as any)?.message || e)}`],
         };
@@ -403,15 +402,15 @@ async function runOneStep(baseUrl: string, st: Step): Promise<StepResult> {
     }
 
     return {
-      ok: false,
-      kind: "exec",
+      ok:    false,
+      kind:  "exec",
       title: "unknown",
       notes: ["Unknown step type"],
     };
   } catch (e: any) {
     return {
-      ok: false,
-      kind: isSqlStep(st) ? "sql" : isHttpStep(st) ? "http" : "exec",
+      ok:    false,
+      kind:  isSqlStep(st) ? "sql" : isHttpStep(st) ? "http" : "exec",
       title: "step error",
       notes: [`Threw: ${e?.message || String(e)}`],
     };
@@ -438,22 +437,20 @@ function normalizeWorkItem(
   if (typeof workItem === "string") {
     const key = workItem.trim();
     if (!key) return undefined;
-
     return {
       key,
-      says: pickString(fallbackSays),
+      says:  pickString(fallbackSays),
       links: pickStringArray(fallbackLinks),
     };
   }
 
   if (workItem && typeof workItem === "object") {
-    const wi = workItem as { key?: unknown; says?: unknown; links?: unknown };
+    const wi  = workItem as { key?: unknown; says?: unknown; links?: unknown };
     const key = typeof wi.key === "string" ? wi.key.trim() : "";
     if (!key) return undefined;
-
     return {
       key,
-      says: pickString(wi.says) ?? pickString(fallbackSays),
+      says:  pickString(wi.says) ?? pickString(fallbackSays),
       links: pickStringArray(wi.links) ?? pickStringArray(fallbackLinks),
     };
   }
@@ -482,11 +479,7 @@ program
   .description("Smoke test — confirms the CLI is installed correctly")
   .action(() => {
     blank();
-    log(
-      `  🪨  ${c.bold("Stoney")} ${c.dim(`v${readVersion()}`)}  ${c.green(
-        "is alive"
-      )}`
-    );
+    log(`  🪨  ${c.bold("Stoney")} ${c.dim(`v${readVersion()}`)}  ${c.green("is alive")}`);
     blank();
   });
 
@@ -520,14 +513,11 @@ program
     for (const p of suitePaths) {
       try {
         const suite = loadSuite(p);
-        const cc = suite.contracts.length;
-        const chk = suite.contracts.reduce((n, x) => n + x.checks.length, 0);
-
+        const cc    = suite.contracts.length;
+        const chk   = suite.contracts.reduce((n, x) => n + x.checks.length, 0);
         passLine(
           `${c.bold(p)}  ${c.dim(
-            `${cc} contract${cc === 1 ? "" : "s"}, ${chk} check${
-              chk === 1 ? "" : "s"
-            }`
+            `${cc} contract${cc === 1 ? "" : "s"}, ${chk} check${chk === 1 ? "" : "s"}`
           )}`
         );
       } catch (e: any) {
@@ -540,11 +530,7 @@ program
     blank();
 
     if (hasErrors) {
-      out(
-        `  ${c.red(FAIL)}  ${c.bold(
-          "Validation failed"
-        )} — fix the errors above before running`
-      );
+      out(`  ${c.red(FAIL)}  ${c.bold("Validation failed")} — fix the errors above before running`);
       blank();
       process.exit(1);
     }
@@ -556,13 +542,13 @@ program
 program
   .command("run")
   .description("Run contracts and fail CI on drift")
-  .option("--suite <glob>", "Contract file path or glob", DEFAULT_SUITE)
-  .option("--base-url <url>", "Base URL for HTTP steps (or STONEY_BASE_URL)")
-  .option("--report <path>", "JSON report output path", "stoney-report.json")
-  .option("--only-contract <name>", "Run only one contract by name")
-  .option("--only-check <id>", "Run only one check by id")
-  .option("--fail-fast", "Stop on first failure", false)
-  .option("--require-work-item", "Require work_item on every check", false)
+  .option("--suite <glob>",              "Contract file path or glob",    DEFAULT_SUITE)
+  .option("--base-url <url>",            "Base URL for HTTP steps (or STONEY_BASE_URL)")
+  .option("--report <path>",             "JSON report output path",       "stoney-report.json")
+  .option("--only-contract <name>",      "Run only one contract by name")
+  .option("--only-check <id>",           "Run only one check by id")
+  .option("--fail-fast",                 "Stop on first failure",         false)
+  .option("--require-work-item",         "Require work_item on every check", false)
   .option("--work-item-pattern <regex>", "Regex that work_item.key must match")
   .allowUnknownOption(false)
   .action(async (opts: any) => {
@@ -570,19 +556,15 @@ program
       await runCommand(opts);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.stack || e.message : String(e);
-      out(
-        `\n  ${c.red(FAIL)}  ${c.bold("Unexpected error")}\n\n${c.dim(msg)}\n`
-      );
+      out(`\n  ${c.red(FAIL)}  ${c.bold("Unexpected error")}\n\n${c.dim(msg)}\n`);
       process.exit(2);
     }
   });
 
 async function runCommand(opts: any): Promise<void> {
   const runStart = Date.now();
-  const baseUrl = String(
-    opts.baseUrl || process.env.STONEY_BASE_URL || ""
-  ).trim();
-  const argv = process.argv.slice(2).filter((a) => a.trim() !== "");
+  const baseUrl  = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
+  const argv     = process.argv.slice(2).filter((a) => a.trim() !== "");
 
   const requireWorkItem = didUserPassFlag(argv, "--require-work-item")
     ? Boolean(opts.requireWorkItem)
@@ -608,9 +590,7 @@ async function runCommand(opts: any): Promise<void> {
   infoLine(`files  ${suitePaths.length}  ${c.gray(suitePaths.join(", "))}`);
   if (baseUrl) infoLine(`url    ${baseUrl}`);
   infoLine(
-    `sync   ${
-      shouldSyncDashboard() ? getIngestEndpoint() : "disabled (local)"
-    }`
+    `sync   ${shouldSyncDashboard() ? getIngestEndpoint() : "disabled (local)"}`
   );
   blank();
 
@@ -623,12 +603,11 @@ async function runCommand(opts: any): Promise<void> {
     }
   }
 
-  let failed = 0;
-  let total = 0;
+  let failed     = 0;
+  let total      = 0;
   let shouldStop = false;
 
-  const results: Array<{ feature: string; contract: string } & ScenarioResult> =
-    [];
+  const results: Array<{ feature: string; contract: string } & ScenarioResult> = [];
 
   for (const suite of suites) {
     if (shouldStop) break;
@@ -649,10 +628,10 @@ async function runCommand(opts: any): Promise<void> {
 
         total++;
         const checkStart = Date.now();
-        let checkOk = true;
-        const notes: string[] = [];
+        let checkOk      = true;
+        const notes: string[]       = [];
         const stepResults: StepResult[] = [];
-        const wi = normalizeWorkItem(check.work_item, check.says, check.links);
+        const wi    = normalizeWorkItem(check.work_item, check.says, check.links);
         const wiKey = wi?.key || "";
 
         if (requireWorkItem) {
@@ -675,7 +654,6 @@ async function runCommand(opts: any): Promise<void> {
             for (const st of check.steps) {
               const r = await runOneStep(baseUrl, st);
               stepResults.push(r);
-
               if (!r.ok) {
                 checkOk = false;
                 if (opts.failFast) break;
@@ -701,13 +679,13 @@ async function runCommand(opts: any): Promise<void> {
         }
 
         results.push({
-          feature: suite.feature,
-          contract: contract.name,
-          id: check.id,
-          ok: checkOk,
+          feature:   suite.feature,
+          contract:  contract.name,
+          id:        check.id,
+          ok:        checkOk,
           work_item: wi,
           notes,
-          steps: stepResults,
+          steps:     stepResults,
         });
 
         if (!checkOk) failed++;
@@ -719,8 +697,8 @@ async function runCommand(opts: any): Promise<void> {
   }
 
   const elapsed = Date.now() - runStart;
-  const passed = Math.max(0, total - failed);
-  const parts = [
+  const passed  = Math.max(0, total - failed);
+  const parts   = [
     failed === 0 ? c.green(`${passed} passed`) : c.red(`${failed} failed`),
     failed > 0 && passed > 0 ? c.dim(`${passed} passed`) : "",
     c.dim(`${total} total`),
@@ -730,36 +708,28 @@ async function runCommand(opts: any): Promise<void> {
     .join(c.dim("  ·  "));
 
   if (failed === 0) {
-    log(
-      `  ${c.green(PASS)}  ${c.bold("All checks passed")}  ${c.dim(
-        "·"
-      )}  ${parts}`
-    );
+    log(`  ${c.green(PASS)}  ${c.bold("All checks passed")}  ${c.dim("·")}  ${parts}`);
   } else {
-    out(
-      `  ${c.red(FAIL)}  ${c.bold(
-        `${failed} check${failed === 1 ? "" : "s"} failed`
-      )}  ${c.dim("·")}  ${parts}`
-    );
+    out(`  ${c.red(FAIL)}  ${c.bold(`${failed} check${failed === 1 ? "" : "s"} failed`)}  ${c.dim("·")}  ${parts}`);
   }
 
   blank();
 
   const report = {
     report_version: 1,
-    base_url: baseUrl,
+    base_url:       baseUrl,
     total,
     failed,
     passed,
-    ok: failed === 0,
-    duration_ms: elapsed,
+    ok:             failed === 0,
+    duration_ms:    elapsed,
     results,
   };
 
-  const out2 = path.resolve(process.cwd(), opts.report);
-  fs.mkdirSync(path.dirname(out2), { recursive: true });
-  fs.writeFileSync(out2, JSON.stringify(report, null, 2), "utf8");
-  infoLine(`report  ${path.relative(process.cwd(), out2)}`);
+  const reportPath = path.resolve(process.cwd(), opts.report);
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+  fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf8");
+  infoLine(`report  ${path.relative(process.cwd(), reportPath)}`);
   blank();
 
   console.log("--- STONEY_REPORT_START ---");
@@ -775,19 +745,26 @@ async function runCommand(opts: any): Promise<void> {
       await pushToDashboard(report, stoneyToken);
     } else {
       warnLine("dashboard sync skipped: STONEY_TOKEN not set");
+      warnLine(
+        `  Add ${c.bold("STONEY_TOKEN")} as a repository secret in GitHub → Settings → Secrets`
+      );
     }
   } else {
-    infoLine("dashboard sync skipped (local run)");
+    infoLine("dashboard sync skipped (local run — GITHUB_ACTIONS not set)");
   }
 
   process.exit(failed === 0 ? 0 : 1);
 }
 
+// ─── init command ─────────────────────────────────────────────────────────
+// FIX: /api/health → /api/healthz  (real health endpoint)
+// FIX: /api/me    → /api/integrations  (me route was deleted)
+
 program
   .command("init")
   .description("Scaffold a starter contract in contracts/")
   .action(() => {
-    const dir = "contracts";
+    const dir      = "contracts";
     const filePath = path.join(dir, "example.yml");
 
     if (!fs.existsSync(dir)) {
@@ -805,36 +782,35 @@ program
     const template = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
 version: 1
 feature: demo
-description: Public Stoney demo contracts against stoneydev.com
+description: Starter Stoney contracts — edit to match your API
 
 contracts:
-  - name: health_endpoint
-    description: Verify the public health endpoint is reachable and returns the expected shape.
+  - name: health_check
+    description: Verify the health endpoint is reachable and returns the expected shape.
     checks:
-      - id: health_ok
-        work_item: "KAN-123"
-        says: "The health endpoint must return 200 and identify the service."
+      - id: healthz_ok
+        work_item: "ENG-1"
+        says: "The health endpoint must return 200 and confirm the database is reachable."
         steps:
           - http:
               method: GET
-              path: /api/health
+              path: /api/healthz
             expect:
               status: 200
               json:
                 ok: true
-                service: "stoney-web"
-                route: "/api/health"
+                db: true
 
   - name: auth_enforcement
     description: Verify protected routes reject unauthenticated requests.
     checks:
-      - id: me_requires_auth
-        work_item: "KAN-124"
-        says: "Unauthenticated requests to /api/me must be rejected."
+      - id: integrations_requires_auth
+        work_item: "ENG-2"
+        says: "Unauthenticated requests to protected API routes must be rejected with 401."
         steps:
           - http:
               method: GET
-              path: /api/me
+              path: /api/integrations
             expect:
               status: 401
 `;
@@ -847,16 +823,10 @@ contracts:
     log(`  ${c.bold("Next steps")}`);
     blank();
     log(`    ${c.cyan("1")}  Edit ${c.bold(filePath)} to match your API`);
-    log(
-      `    ${c.cyan("2")}  Add ${c.bold(
-        "STONEY_BASE_URL=https://stoneydev.com"
-      )} to ${c.bold(".env")} or pass ${c.bold("--base-url")}`
-    );
-    log(
-      `    ${c.cyan("3")}  CI runs sync automatically to the dashboard`
-    );
-    log(`    ${c.cyan("4")}  ${c.bold("stoney validate")}`);
-    log(`    ${c.cyan("5")}  ${c.bold("stoney run")}`);
+    log(`    ${c.cyan("2")}  Set ${c.bold("STONEY_BASE_URL=https://your-app.com")} in ${c.bold(".env")} or pass ${c.bold("--base-url")}`);
+    log(`    ${c.cyan("3")}  ${c.bold("stoney validate")}`);
+    log(`    ${c.cyan("4")}  ${c.bold("stoney run")}`);
+    log(`    ${c.cyan("5")}  Add ${c.bold("STONEY_TOKEN")} to your repo secrets for dashboard sync`);
     blank();
   });
 

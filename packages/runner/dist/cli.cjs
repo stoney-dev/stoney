@@ -9710,7 +9710,7 @@ init_cjs_shims();
 // src/cli.ts
 var import_node_fs3 = __toESM(require("fs"), 1);
 var import_node_path4 = __toESM(require("path"), 1);
-var import_node_crypto2 = __toESM(require("crypto"), 1);
+var import_node_crypto3 = __toESM(require("crypto"), 1);
 var import_fast_glob = __toESM(require_out4(), 1);
 
 // ../../node_modules/.pnpm/commander@14.0.3/node_modules/commander/esm.mjs
@@ -16994,6 +16994,14 @@ async function runExecStep(step, expect) {
   };
 }
 
+// src/sign.ts
+init_cjs_shims();
+var import_node_crypto2 = require("crypto");
+function signPayload(body, token) {
+  const hex = (0, import_node_crypto2.createHmac)("sha256", token).update(body).digest("hex");
+  return `sha256=${hex}`;
+}
+
 // src/cli.ts
 var program2 = new Command();
 var DEFAULT_STONEY_ORIGIN = "https://stoneydev.com";
@@ -17127,7 +17135,7 @@ function getInstallationId() {
   if (repo) return `gh:${repo.toLowerCase()}`;
   try {
     const home = process.env.HOME || process.env.USERPROFILE;
-    if (!home) return `local:${import_node_crypto2.default.randomUUID()}`;
+    if (!home) return `local:${import_node_crypto3.default.randomUUID()}`;
     const dir = import_node_path4.default.join(home, ".stoney");
     const file = import_node_path4.default.join(dir, "telemetry-id");
     if (!import_node_fs3.default.existsSync(dir)) import_node_fs3.default.mkdirSync(dir, { recursive: true });
@@ -17135,11 +17143,11 @@ function getInstallationId() {
       const id2 = import_node_fs3.default.readFileSync(file, "utf8").trim();
       if (id2) return `local:${id2}`;
     }
-    const id = import_node_crypto2.default.randomUUID();
+    const id = import_node_crypto3.default.randomUUID();
     import_node_fs3.default.writeFileSync(file, id, "utf8");
     return `local:${id}`;
   } catch {
-    return `local:${import_node_crypto2.default.randomUUID()}`;
+    return `local:${import_node_crypto3.default.randomUUID()}`;
   }
 }
 function isMissingPgError(err) {
@@ -17219,24 +17227,28 @@ async function pushToDashboard(report, token) {
   const version = readVersion();
   const repo_id = String(process.env.GITHUB_REPOSITORY || "unknown");
   const run_id = String(process.env.GITHUB_RUN_ID || "");
+  const body = JSON.stringify({
+    repo_id,
+    git_sha: String(process.env.GITHUB_SHA || ""),
+    git_ref: String(process.env.GITHUB_REF || ""),
+    run_id,
+    run_url: run_id ? `https://github.com/${repo_id}/actions/runs/${run_id}` : "",
+    actor: String(process.env.GITHUB_ACTOR || ""),
+    event_name: String(process.env.GITHUB_EVENT_NAME || ""),
+    report
+  });
+  const signature = signPayload(body, token);
   try {
     const res = await fetch(getIngestEndpoint(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "User-Agent": `stoney/${version}`,
-        Authorization: `Bearer ${token}`
+        "Authorization": `Bearer ${token}`,
+        "X-Stoney-Signature": signature
+        // ← NEW: send signature
       },
-      body: JSON.stringify({
-        repo_id,
-        git_sha: String(process.env.GITHUB_SHA || ""),
-        git_ref: String(process.env.GITHUB_REF || ""),
-        run_id,
-        run_url: run_id ? `https://github.com/${repo_id}/actions/runs/${run_id}` : "",
-        actor: String(process.env.GITHUB_ACTOR || ""),
-        event_name: String(process.env.GITHUB_EVENT_NAME || ""),
-        report
-      }),
+      body,
       signal: controller.signal
     });
     if (res.ok) {
@@ -17244,16 +17256,30 @@ async function pushToDashboard(report, token) {
         `${c.bold("Dashboard")} synced  ${c.dim(`\u2192 ${getStoneyOrigin()}`)}`
       );
     } else if (res.status === 401) {
+      let hint = "";
+      try {
+        const data = await res.json();
+        hint = data.error ? `
+       ${c.dim(data.error)}` : "";
+      } catch {
+      }
       warnLine(
-        `Dashboard sync failed: invalid ${c.bold(
-          "STONEY_TOKEN"
-        )} \u2014 check your .env or repo secret`
+        `Dashboard sync failed: authentication error${hint}`
       );
+      warnLine(
+        `  Check that ${c.bold("STONEY_TOKEN")} is set correctly in your repo secrets`
+      );
+    } else if (res.status === 429) {
+      warnLine("Dashboard sync failed: rate limit exceeded \u2014 will retry on next run");
     } else {
       warnLine(`Dashboard sync failed: HTTP ${res.status}`);
     }
   } catch (e) {
-    warnLine(`Dashboard sync error: ${e?.message || String(e)}`);
+    if (e?.name === "AbortError") {
+      warnLine("Dashboard sync timed out (10s)");
+    } else {
+      warnLine(`Dashboard sync error: ${e?.message || String(e)}`);
+    }
   } finally {
     clearTimeout(tid);
   }
@@ -17266,9 +17292,7 @@ async function runOneStep(baseUrl, st) {
           ok: false,
           kind: "http",
           title: `${st.http.method} ${st.http.path}`,
-          notes: [
-            "No base URL \u2014 set STONEY_BASE_URL in .env or pass --base-url"
-          ]
+          notes: ["No base URL \u2014 set STONEY_BASE_URL in .env or pass --base-url"]
         };
       }
       return await runHttpStep(baseUrl, st.http, st.expect);
@@ -17296,8 +17320,8 @@ async function runOneStep(baseUrl, st) {
             kind: "sql",
             title: `sql ${driver} (${st.sql.url_env})`,
             notes: [
-              "This contract uses SQL, but the postgres driver dependency is not available.",
-              "Install the postgres runtime dependency for the runner, or remove SQL steps from this repo."
+              "This contract uses SQL, but the postgres driver is not available.",
+              "Install the postgres runtime dependency, or remove SQL steps."
             ]
           };
         }
@@ -17364,11 +17388,7 @@ program2.name("stoney").description("Stoney \u2014 Requirements-as-Code CI runne
 });
 program2.command("hello").description("Smoke test \u2014 confirms the CLI is installed correctly").action(() => {
   blank();
-  log(
-    `  \u{1FAA8}  ${c.bold("Stoney")} ${c.dim(`v${readVersion()}`)}  ${c.green(
-      "is alive"
-    )}`
-  );
+  log(`  \u{1FAA8}  ${c.bold("Stoney")} ${c.dim(`v${readVersion()}`)}  ${c.green("is alive")}`);
   blank();
 });
 program2.command("parse").argument("<file>", "Contract file (.yml / .yaml / .json)").option("--pretty", "Pretty-print JSON output").description("Parse and print a contract file as JSON").action((file, opts) => {
@@ -17402,11 +17422,7 @@ program2.command("validate").description("Parse and schema-validate contracts wi
   }
   blank();
   if (hasErrors) {
-    out(
-      `  ${c.red(FAIL)}  ${c.bold(
-        "Validation failed"
-      )} \u2014 fix the errors above before running`
-    );
+    out(`  ${c.red(FAIL)}  ${c.bold("Validation failed")} \u2014 fix the errors above before running`);
     blank();
     process.exit(1);
   }
@@ -17418,21 +17434,17 @@ program2.command("run").description("Run contracts and fail CI on drift").option
     await runCommand(opts);
   } catch (e) {
     const msg = e instanceof Error ? e.stack || e.message : String(e);
-    out(
-      `
+    out(`
   ${c.red(FAIL)}  ${c.bold("Unexpected error")}
 
 ${c.dim(msg)}
-`
-    );
+`);
     process.exit(2);
   }
 });
 async function runCommand(opts) {
   const runStart = Date.now();
-  const baseUrl = String(
-    opts.baseUrl || process.env.STONEY_BASE_URL || ""
-  ).trim();
+  const baseUrl = String(opts.baseUrl || process.env.STONEY_BASE_URL || "").trim();
   const argv = process.argv.slice(2).filter((a) => a.trim() !== "");
   const requireWorkItem = didUserPassFlag(argv, "--require-work-item") ? Boolean(opts.requireWorkItem) : envFlag("STONEY_REQUIRE_WORK_ITEM");
   const patternRaw = String(
@@ -17548,17 +17560,9 @@ async function runCommand(opts) {
     c.dim(formatMs(elapsed))
   ].filter(Boolean).join(c.dim("  \xB7  "));
   if (failed === 0) {
-    log(
-      `  ${c.green(PASS)}  ${c.bold("All checks passed")}  ${c.dim(
-        "\xB7"
-      )}  ${parts}`
-    );
+    log(`  ${c.green(PASS)}  ${c.bold("All checks passed")}  ${c.dim("\xB7")}  ${parts}`);
   } else {
-    out(
-      `  ${c.red(FAIL)}  ${c.bold(
-        `${failed} check${failed === 1 ? "" : "s"} failed`
-      )}  ${c.dim("\xB7")}  ${parts}`
-    );
+    out(`  ${c.red(FAIL)}  ${c.bold(`${failed} check${failed === 1 ? "" : "s"} failed`)}  ${c.dim("\xB7")}  ${parts}`);
   }
   blank();
   const report = {
@@ -17571,10 +17575,10 @@ async function runCommand(opts) {
     duration_ms: elapsed,
     results
   };
-  const out2 = import_node_path4.default.resolve(process.cwd(), opts.report);
-  import_node_fs3.default.mkdirSync(import_node_path4.default.dirname(out2), { recursive: true });
-  import_node_fs3.default.writeFileSync(out2, JSON.stringify(report, null, 2), "utf8");
-  infoLine(`report  ${import_node_path4.default.relative(process.cwd(), out2)}`);
+  const reportPath = import_node_path4.default.resolve(process.cwd(), opts.report);
+  import_node_fs3.default.mkdirSync(import_node_path4.default.dirname(reportPath), { recursive: true });
+  import_node_fs3.default.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf8");
+  infoLine(`report  ${import_node_path4.default.relative(process.cwd(), reportPath)}`);
   blank();
   console.log("--- STONEY_REPORT_START ---");
   console.log(JSON.stringify(report));
@@ -17586,9 +17590,12 @@ async function runCommand(opts) {
       await pushToDashboard(report, stoneyToken);
     } else {
       warnLine("dashboard sync skipped: STONEY_TOKEN not set");
+      warnLine(
+        `  Add ${c.bold("STONEY_TOKEN")} as a repository secret in GitHub \u2192 Settings \u2192 Secrets`
+      );
     }
   } else {
-    infoLine("dashboard sync skipped (local run)");
+    infoLine("dashboard sync skipped (local run \u2014 GITHUB_ACTIONS not set)");
   }
   process.exit(failed === 0 ? 0 : 1);
 }
@@ -17608,36 +17615,35 @@ program2.command("init").description("Scaffold a starter contract in contracts/"
   const template = `# yaml-language-server: $schema=https://stoneydev.com/schema.json
 version: 1
 feature: demo
-description: Public Stoney demo contracts against stoneydev.com
+description: Starter Stoney contracts \u2014 edit to match your API
 
 contracts:
-  - name: health_endpoint
-    description: Verify the public health endpoint is reachable and returns the expected shape.
+  - name: health_check
+    description: Verify the health endpoint is reachable and returns the expected shape.
     checks:
-      - id: health_ok
-        work_item: "KAN-123"
-        says: "The health endpoint must return 200 and identify the service."
+      - id: healthz_ok
+        work_item: "ENG-1"
+        says: "The health endpoint must return 200 and confirm the database is reachable."
         steps:
           - http:
               method: GET
-              path: /api/health
+              path: /api/healthz
             expect:
               status: 200
               json:
                 ok: true
-                service: "stoney-web"
-                route: "/api/health"
+                db: true
 
   - name: auth_enforcement
     description: Verify protected routes reject unauthenticated requests.
     checks:
-      - id: me_requires_auth
-        work_item: "KAN-124"
-        says: "Unauthenticated requests to /api/me must be rejected."
+      - id: integrations_requires_auth
+        work_item: "ENG-2"
+        says: "Unauthenticated requests to protected API routes must be rejected with 401."
         steps:
           - http:
               method: GET
-              path: /api/me
+              path: /api/integrations
             expect:
               status: 401
 `;
@@ -17648,16 +17654,10 @@ contracts:
   log(`  ${c.bold("Next steps")}`);
   blank();
   log(`    ${c.cyan("1")}  Edit ${c.bold(filePath)} to match your API`);
-  log(
-    `    ${c.cyan("2")}  Add ${c.bold(
-      "STONEY_BASE_URL=https://stoneydev.com"
-    )} to ${c.bold(".env")} or pass ${c.bold("--base-url")}`
-  );
-  log(
-    `    ${c.cyan("3")}  CI runs sync automatically to the dashboard`
-  );
-  log(`    ${c.cyan("4")}  ${c.bold("stoney validate")}`);
-  log(`    ${c.cyan("5")}  ${c.bold("stoney run")}`);
+  log(`    ${c.cyan("2")}  Set ${c.bold("STONEY_BASE_URL=https://your-app.com")} in ${c.bold(".env")} or pass ${c.bold("--base-url")}`);
+  log(`    ${c.cyan("3")}  ${c.bold("stoney validate")}`);
+  log(`    ${c.cyan("4")}  ${c.bold("stoney run")}`);
+  log(`    ${c.cyan("5")}  Add ${c.bold("STONEY_TOKEN")} to your repo secrets for dashboard sync`);
   blank();
 });
 async function main() {
